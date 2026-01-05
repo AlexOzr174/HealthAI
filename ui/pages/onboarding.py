@@ -1,13 +1,12 @@
 # Страница первичной настройки (онбординг)
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                               QLineEdit, QComboBox, QPushButton, QFrame,
-                              QSlider, QGridLayout, QButtonGroup, QRadioButton,
-                              QScrollArea, QStackedWidget)
+                              QButtonGroup, QRadioButton,
+                              QScrollArea, QSpacerItem, QSizePolicy)
 from PyQt6.QtCore import Qt, pyqtSignal
 
 from config.settings import COLORS, ACTIVITY_LEVELS, GOALS
-from core.calculator import calculate_bmr, calculate_tdee, calculate_target_calories, MacroCalculator
-from core.pezvner import PevznerDiets
+from core.calculator import calculate_bmr, calculate_tdee, calculate_target_calories
 from database.operations import save_user, unlock_achievement
 from database.init_db import populate_initial_data
 
@@ -24,190 +23,219 @@ class OnboardingPage(QWidget):
 
     def setup_ui(self):
         """Настройка интерфейса"""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 40, 40, 40)
-        layout.setSpacing(24)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(40, 40, 40, 40)
+        main_layout.setSpacing(20)
 
         # Заголовок
         title = QLabel("Добро пожаловать в HealthAI!")
-        title.setStyleSheet(f"""
-            font-size: 28px;
-            font-weight: bold;
-            color: {COLORS['primary_dark']};
-        """)
+        title.setStyleSheet(f"font-size: 28px; font-weight: bold; color: {COLORS['primary_dark']};")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title)
+        main_layout.addWidget(title)
 
-        # Подзаголовок
         subtitle = QLabel("Давайте настроим приложение под вас")
-        subtitle.setStyleSheet(f"""
-            font-size: 16px;
-            color: {COLORS['text_secondary']};
-        """)
+        subtitle.setStyleSheet(f"font-size: 16px; color: {COLORS['text_secondary']};")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(subtitle)
+        main_layout.addWidget(subtitle)
 
-        layout.addSpacing(20)
+        main_layout.addSpacing(10)
 
-        # Контейнер с формой (с прокруткой)
+        # Скролл-область
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet(f"""
-            QScrollArea {{
-                background-color: transparent;
-                border: none;
-            }}
-        """)
+        scroll.setStyleSheet(f"QScrollArea {{ background-color: transparent; border: none; }}")
 
-        form_container = QWidget()
-        form_layout = QVBoxLayout(form_container)
-        form_layout.setSpacing(20)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setSpacing(16)
 
-        # Шаг 1: Основная информация
-        step1_frame, step1_layout = self.create_step_frame("Шаг 1: Основная информация")
-        step1_frame.setLayout(step1_layout)
+        # === Шаг 1: Основная информация ===
+        step1 = self._create_section_frame("Шаг 1: Основная информация")
+        step1_layout = step1.layout()
 
-        step1_layout.addWidget(QLabel("Ваше имя:"), 0, 0)
+        # Имя
+        step1_layout.addWidget(self._create_label("Ваше имя:"))
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Введите ваше имя")
-        step1_layout.addWidget(self.name_input, 0, 1)
+        step1_layout.addWidget(self.name_input)
 
-        step1_layout.addWidget(QLabel("Пол:"), 1, 0)
-        gender_layout = QHBoxLayout()
-        self.gender_group = QButtonGroup()
-        male_radio = QRadioButton("Мужской")
-        female_radio = QRadioButton("Женский")
-        self.gender_group.addButton(male_radio, 0)
-        self.gender_group.addButton(female_radio, 1)
-        gender_layout.addWidget(male_radio)
-        gender_layout.addWidget(female_radio)
-        gender_layout.addStretch()
-        step1_layout.addLayout(gender_layout, 1, 1)
+        # Пол
+        step1_layout.addWidget(self._create_label("Пол:"))
+        gender_container = self._create_gender_selector()
+        step1_layout.addWidget(gender_container)
 
-        step1_layout.addWidget(QLabel("Возраст (лет):"), 2, 0)
+        # Возраст
+        step1_layout.addWidget(self._create_label("Возраст (лет):"))
         self.age_input = QLineEdit()
         self.age_input.setPlaceholderText("Например, 30")
-        step1_layout.addWidget(self.age_input, 2, 1)
+        step1_layout.addWidget(self.age_input)
 
-        step1_layout.addWidget(QLabel("Рост (см):"), 3, 0)
+        # Рост
+        step1_layout.addWidget(self._create_label("Рост (см):"))
         self.height_input = QLineEdit()
         self.height_input.setPlaceholderText("Например, 175")
-        step1_layout.addWidget(self.height_input, 3, 1)
+        step1_layout.addWidget(self.height_input)
 
-        step1_layout.addWidget(QLabel("Вес (кг):"), 4, 0)
+        # Вес
+        step1_layout.addWidget(self._create_label("Вес (кг):"))
         self.weight_input = QLineEdit()
         self.weight_input.setPlaceholderText("Например, 70")
-        step1_layout.addWidget(self.weight_input, 4, 1)
+        step1_layout.addWidget(self.weight_input)
 
-        form_layout.addWidget(step1_frame)
+        scroll_layout.addWidget(step1)
 
-        # Шаг 2: Активность
-        step2_frame, step2_layout = self.create_step_frame("Шаг 2: Уровень активности")
-        step2_frame.setLayout(step2_layout)
+        # === Шаг 2: Активность ===
+        step2 = self._create_section_frame("Шаг 2: Уровень активности")
+        step2_layout = step2.layout()
 
         self.activity_combo = QComboBox()
         for level_id, level_data in ACTIVITY_LEVELS.items():
             self.activity_combo.addItem(level_data['name'], level_id)
         step2_layout.addWidget(self.activity_combo)
 
-        activity_desc = QLabel("Выберите наиболее подходящий вариант")
-        activity_desc.setStyleSheet(f"""
-            font-size: 12px;
-            color: {COLORS['text_hint']};
-        """)
-        step2_layout.addWidget(activity_desc)
+        desc = QLabel("Выберите наиболее подходящий вариант")
+        desc.setStyleSheet(f"font-size: 12px; color: {COLORS['text_hint']};")
+        step2_layout.addWidget(desc)
 
-        form_layout.addWidget(step2_frame)
+        scroll_layout.addWidget(step2)
 
-        # Шаг 3: Цель
-        step3_frame, step3_layout = self.create_step_frame("Шаг 3: Ваша цель")
-        step3_frame.setLayout(step3_layout)
+        # === Шаг 3: Цель ===
+        step3 = self._create_section_frame("Шаг 3: Ваша цель")
+        step3_layout = step3.layout()
 
         self.goal_combo = QComboBox()
         for goal_id, goal_data in GOALS.items():
             self.goal_combo.addItem(f"{goal_data['name']} - {goal_data['description']}", goal_id)
         step3_layout.addWidget(self.goal_combo)
 
-        form_layout.addWidget(step3_frame)
+        scroll_layout.addWidget(step3)
 
-        # Шаг 4: Медицинские показания (опционально)
-        step4_frame, step4_layout = self.create_step_frame("Шаг 4: Медицинские показания (необязательно)")
-        step4_frame.setLayout(step4_layout)
+        # === Шаг 4: Диета ===
+        step4 = self._create_section_frame("Шаг 4: Диета (необязательно)")
+        step4_layout = step4.layout()
 
         self.diet_combo = QComboBox()
         self.diet_combo.addItem("Без ограничений", None)
-        for diet in PevznerDiets.get_all_diets():
-            self.diet_combo.addItem(f"Стол №{diet.number}: {diet.name}", diet.id)
-
-        self.diet_combo.currentIndexChanged.connect(self.show_diet_info)
+        self.diet_combo.addItem("Стол №5 - Печёночный", "pevzner_5")
+        self.diet_combo.addItem("Стол №9 - Диабетический", "pevzner_9")
+        self.diet_combo.addItem("Стол №1 - Язвенный", "pevzner_1")
+        self.diet_combo.addItem("Стол №15 - Общий", "pevzner_15")
+        self.diet_combo.currentIndexChanged.connect(self._on_diet_changed)
         step4_layout.addWidget(self.diet_combo)
 
-        self.diet_info_label = QLabel("")
-        self.diet_info_label.setStyleSheet(f"""
+        self.diet_info = QLabel("")
+        self.diet_info.setStyleSheet(f"""
             font-size: 12px;
             color: {COLORS['text_secondary']};
-            background-color: {COLORS['background']};
+            background-color: {COLORS['surface']};
             border-radius: 8px;
             padding: 12px;
         """)
-        self.diet_info_label.setWordWrap(True)
-        step4_layout.addWidget(self.diet_info_label)
+        self.diet_info.setWordWrap(True)
+        self.diet_info.setVisible(False)
+        step4_layout.addWidget(self.diet_info)
 
-        form_layout.addWidget(step4_frame)
+        scroll_layout.addWidget(step4)
 
-        form_container.setLayout(form_layout)
-        scroll.setWidget(form_container)
-        layout.addWidget(scroll)
+        # Устанавливаем контент в скролл
+        scroll.setWidget(scroll_content)
+        main_layout.addWidget(scroll, stretch=1)
 
-        # Результат расчётов
-        self.result_frame = self.create_result_frame()
+        # === Результат ===
+        self.result_frame = self._create_result_frame()
         self.result_frame.setVisible(False)
-        layout.addWidget(self.result_frame)
+        main_layout.addWidget(self.result_frame)
 
-        # Кнопки
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
+        # === Кнопки ===
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
 
         self.calc_btn = QPushButton("Рассчитать")
+        self.calc_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['primary']};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 32px;
+                font-size: 16px;
+            }}
+            QPushButton:hover {{ background-color: {COLORS['primary_hover']}; }}
+        """)
         self.calc_btn.clicked.connect(self.calculate_and_show)
-        button_layout.addWidget(self.calc_btn)
+        btn_layout.addWidget(self.calc_btn)
 
         self.save_btn = QPushButton("Сохранить и начать")
+        self.save_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['success']};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 32px;
+                font-size: 16px;
+            }}
+            QPushButton:hover {{ background-color: {COLORS['success_hover']}; }}
+        """)
         self.save_btn.setVisible(False)
         self.save_btn.clicked.connect(self.save_and_finish)
-        button_layout.addWidget(self.save_btn)
+        btn_layout.addWidget(self.save_btn)
 
-        layout.addLayout(button_layout)
+        main_layout.addLayout(btn_layout)
 
-    def create_step_frame(self, title: str) -> tuple:
-        """Создание рамки для шага"""
+    def _create_label(self, text: str) -> QLabel:
+        """Создание подписи"""
+        label = QLabel(text)
+        label.setStyleSheet(f"font-size: 14px; color: {COLORS['text_primary']};")
+        return label
+
+    def _create_section_frame(self, title: str) -> QFrame:
+        """Создание секции формы"""
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
                 background-color: {COLORS['surface']};
                 border: 1px solid {COLORS['border']};
                 border-radius: 12px;
-                padding: 20px;
+                padding: 16px;
             }}
         """)
 
-        # Создаём GridLayout (но НЕ назначаем его фрейму - это сделает вызывающий код)
-        content_layout = QGridLayout()
-        content_layout.setSpacing(12)
+        layout = QVBoxLayout(frame)
+        layout.setSpacing(12)
 
         title_label = QLabel(title)
-        title_label.setStyleSheet(f"""
-            font-size: 16px;
-            font-weight: bold;
-            color: {COLORS['primary_dark']};
-        """)
-        # Заголовок занимает обе колонки
-        content_layout.addWidget(title_label, 0, 0, 1, 2)
-        content_layout.addWidget(QLabel(), 1, 0)  # Spacer
+        title_label.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {COLORS['primary_dark']};")
+        layout.addWidget(title_label)
 
-        return frame, content_layout
+        # Добавляем spacer между заголовком и контентом
+        spacer = QSpacerItem(0, 8, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        layout.addSpacerItem(spacer)
 
-    def create_result_frame(self) -> QFrame:
+        return frame
+
+    def _create_gender_selector(self) -> QWidget:
+        """Создание селектора пола"""
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+
+        self.gender_group = QButtonGroup()
+
+        male_radio = QRadioButton("Мужской")
+        female_radio = QRadioButton("Женский")
+
+        self.gender_group.addButton(male_radio, 0)
+        self.gender_group.addButton(female_radio, 1)
+
+        layout.addWidget(male_radio)
+        layout.addWidget(female_radio)
+        layout.addStretch()
+
+        return container
+
+    def _create_result_frame(self) -> QFrame:
         """Создание рамки с результатами"""
         frame = QFrame()
         frame.setStyleSheet(f"""
@@ -221,63 +249,50 @@ class OnboardingPage(QWidget):
 
         layout = QVBoxLayout(frame)
 
-        title = QLabel("🎯 Ваша норма калорий")
-        title.setStyleSheet(f"""
-            font-size: 18px;
-            font-weight: bold;
-            color: {COLORS['primary_dark']};
-        """)
+        title = QLabel("Ваша норма калорий")
+        title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {COLORS['primary_dark']};")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
         layout.addSpacing(16)
 
-        # Калории
         self.result_calories = QLabel("")
-        self.result_calories.setStyleSheet(f"""
-            font-size: 32px;
-            font-weight: bold;
-            color: {COLORS['primary']};
-        """)
+        self.result_calories.setStyleSheet(f"font-size: 32px; font-weight: bold; color: {COLORS['primary']};")
         self.result_calories.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.result_calories)
 
         layout.addSpacing(12)
 
-        # БЖУ
         self.result_macros = QLabel("")
-        self.result_macros.setStyleSheet(f"""
-            font-size: 14px;
-            color: {COLORS['text_secondary']};
-        """)
+        self.result_macros.setStyleSheet(f"font-size: 14px; color: {COLORS['text_secondary']};")
         self.result_macros.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.result_macros)
 
         return frame
 
-    def show_diet_info(self):
-        """Показать информацию о выбранной диете"""
+    def _on_diet_changed(self):
+        """Обработчик изменения диеты"""
         diet_id = self.diet_combo.currentData()
-        if diet_id:
-            diet = PevznerDiets.get_diet(diet_id)
-            if diet:
-                info = f"""
-<b>{diet.full_name}</b><br>
-Показания: {', '.join(diet.indications[:2])}<br>
-Длительность: {diet.duration}
-"""
-                self.diet_info_label.setText(info)
-                self.diet_info_label.setVisible(True)
+        diet_info = {
+            None: ("Без ограничений", "Можно есть всё в умеренных количествах"),
+            "pevzner_5": ("Стол №5", "Для заболеваний печени и желчного пузыря"),
+            "pevzner_9": ("Стол №9", "Для сахарного диабета"),
+            "pevzner_1": ("Стол №1", "Для язвенной болезни желудка"),
+            "pevzner_15": ("Стол №15", "Для восстановления после болезни"),
+        }
+
+        if diet_id in diet_info:
+            name, desc = diet_info[diet_id]
+            self.diet_info.setText(f"<b>{name}</b><br>{desc}")
+            self.diet_info.setVisible(True)
         else:
-            self.diet_info_label.setVisible(False)
+            self.diet_info.setVisible(False)
 
     def calculate_and_show(self):
         """Расчёт и показ результатов"""
-        # Валидация
         if not self.validate_inputs():
             return
 
-        # Получение данных
         name = self.name_input.text().strip()
         gender = 'male' if self.gender_group.checkedId() == 0 else 'female'
         age = int(self.age_input.text())
@@ -287,25 +302,22 @@ class OnboardingPage(QWidget):
         goal = self.goal_combo.currentData()
         diet_type = self.diet_combo.currentData()
 
-        # Расчёты
         bmr = calculate_bmr(gender, age, height, weight)
         tdee = calculate_tdee(bmr, activity_level)
         target = calculate_target_calories(tdee, goal)
 
-        # Отображение результатов
         self.result_calories.setText(f"{int(target)} ккал/день")
 
         macros = {
-            'protein': int(target * 0.25 / 4),  # ~25% белка
-            'fat': int(target * 0.25 / 9),      # ~25% жира
-            'carbs': int(target * 0.50 / 4),    # ~50% углеводов
+            'protein': int(target * 0.25 / 4),
+            'fat': int(target * 0.25 / 9),
+            'carbs': int(target * 0.50 / 4),
         }
 
         self.result_macros.setText(
             f"Белки: {macros['protein']}г | Жиры: {macros['fat']}г | Углеводы: {macros['carbs']}г"
         )
 
-        # Сохранение расчётов для использования при сохранении
         self.calculation_result = {
             'bmr': bmr,
             'tdee': tdee,
@@ -378,21 +390,16 @@ class OnboardingPage(QWidget):
             'bmr': self.calculation_result['bmr'],
             'tdee': self.calculation_result['tdee'],
             'target_calories': self.calculation_result['target'],
-            'xp': 10,  # Начальный XP
+            'xp': 10,
         }
 
-        # Инициализация базы данных
         populate_initial_data()
-
-        # Сохранение пользователя
         save_user(user_data)
 
-        # Разблокируем первое достижение
         from database.operations import get_user
         user = get_user()
         if user:
             unlock_achievement(user.id, 'first_entry')
 
-        # Переход на главную страницу
         self.main_window.check_user()
         self.completed.emit()

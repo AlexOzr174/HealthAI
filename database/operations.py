@@ -363,13 +363,18 @@ def get_available_achievements(user_id):
     """Получение доступных (неразблокированных) достижений"""
     session = get_session()
     try:
-        unlocked = session.query(UserAchievement.achievement_id).filter(
+        # Получаем ID разблокированных достижений как список
+        unlocked_ids = session.query(UserAchievement.achievement_id).filter(
             UserAchievement.user_id == user_id
-        ).subquery()
-
-        achievements = session.query(Achievement).filter(
-            ~Achievement.id.in_(unlocked)
         ).all()
+        unlocked_list = [id[0] for id in unlocked_ids]
+
+        if unlocked_list:
+            achievements = session.query(Achievement).filter(
+                ~Achievement.id.in_(unlocked_list)
+            ).all()
+        else:
+            achievements = session.query(Achievement).all()
         return achievements
     finally:
         session.close()
