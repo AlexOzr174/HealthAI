@@ -1,0 +1,73 @@
+# HealthAI - Python PyQt6 Desktop Application
+# .gitignore
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+healthai.db
+
+# Logs
+*.log
+logs/
+
+# OS files
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# PyQt6 compiled resources
+resources_rc.py
+*.qrc
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.coveragerc
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Project specific
+assets/*.png
+assets/*.jpg
+assets/*.jpeg
+assets/*.gif
+temp/
+tmp/

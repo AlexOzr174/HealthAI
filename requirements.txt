@@ -1,0 +1,28 @@
+# HealthAI - Умный гид по здоровому питанию
+# Dependencies for the application
+# Важно: версии совместимы с Python 3.12
+
+# GUI Framework
+PyQt6==6.5.0
+
+# Database
+sqlalchemy>=2.0.36
+
+# Data Processing - pandas 2.2+ поддерживает Python 3.13
+pandas==2.2.3
+numpy==2.2.1
+
+# Visualization
+matplotlib==3.9.2
+
+# Machine Learning (for recommendation system)
+scikit-learn==1.5.2
+
+# Configuration
+PyYAML==6.0.2
+
+# For JSON handling
+orjson==3.10.12
+
+pyqt6-sip==13.5.0
+pyqt6-qt6==6.5.0

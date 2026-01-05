@@ -1,0 +1,194 @@
+# Диалоговые окна и утилиты
+from PyQt6.QtWidgets import (QDialog, QDialogButtonBox, QVBoxLayout, QHBoxLayout,
+                              QLabel, QPushButton, QLineEdit, QComboBox,
+                              QListWidget, QListWidgetItem, QFrame, QMessageBox,
+                              QGridLayout, QDoubleSpinBox)
+from PyQt6.QtCore import Qt
+
+from config.settings import COLORS, GOALS, ACTIVITY_LEVELS
+from database.operations import save_user, get_user
+from database.models import Recipe
+from core.pezvner import PevznerDiets
+
+
+def show_message(parent, title: str, text: str):
+    """Показать информационное сообщение"""
+    msg = QMessageBox(parent)
+    msg.setIcon(QMessageBox.Icon.Information)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    msg.exec()
+
+
+def show_error(parent, title: str, text: str):
+    """Показать сообщение об ошибке"""
+    msg = QMessageBox(parent)
+    msg.setIcon(QMessageBox.Icon.Critical)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    msg.exec()
+
+
+class SettingsDialog(QDialog):
+    """Диалог настроек"""
+
+    def __init__(self, user, parent=None):
+        super().__init__(parent)
+        self.user = user
+        self.setWindowTitle("Настройки профиля")
+        self.setMinimumWidth(400)
+        self.setup_ui()
+
+    def setup_ui(self):
+        """Настройка интерфейса"""
+        layout = QVBoxLayout(self)
+
+        # Имя
+        layout.addWidget(QLabel("Имя:"))
+        self.name_input = QLineEdit(self.user.name if self.user else "")
+        layout.addWidget(self.name_input)
+
+        # Цель
+        layout.addWidget(QLabel("Цель:"))
+        self.goal_combo = QComboBox()
+        for goal_id, goal_data in GOALS.items():
+            self.goal_combo.addItem(f"{goal_data['name']} - {goal_data['description']}", goal_id)
+        if self.user:
+            self.goal_combo.setCurrentText(self.user.goal)
+        layout.addWidget(self.goal_combo)
+
+        # Уровень активности
+        layout.addWidget(QLabel("Уровень активности:"))
+        self.activity_combo = QComboBox()
+        for level_id, level_data in ACTIVITY_LEVELS.items():
+            self.activity_combo.addItem(level_data['name'], level_id)
+        if self.user:
+            self.activity_combo.setCurrentText(self.user.activity_level)
+        layout.addWidget(self.activity_combo)
+
+        # Диета
+        layout.addWidget(QLabel("Тип диеты:"))
+        self.diet_combo = QComboBox()
+        self.diet_combo.addItem("Без ограничений", None)
+        for diet in PevznerDiets.get_all_diets():
+            self.diet_combo.addItem(f"Стол №{diet.number}: {diet.name}", diet.id)
+        if self.user and self.user.diet_type:
+            self.diet_combo.setCurrentText(self.user.diet_type)
+        layout.addWidget(self.diet_combo)
+
+        # Кнопки
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.save_settings)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def save_settings(self):
+        """Сохранение настроек"""
+        if not self.user:
+            return
+
+        user_data = {
+            'name': self.name_input.text(),
+            'goal': self.goal_combo.currentData(),
+            'activity_level': self.activity_combo.currentData(),
+            'diet_type': self.diet_combo.currentData(),
+        }
+
+        save_user(user_data)
+        self.accept()
+
+
+class RecipeSelectionDialog(QDialog):
+    """Диалог выбора рецепта"""
+
+    def __init__(self, diet_type: str = None, parent=None):
+        super().__init__(parent)
+        self.diet_type = diet_type
+        self.selected_recipe = None
+        self.setWindowTitle("Выберите блюдо")
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(400)
+        self.setup_ui()
+
+    def setup_ui(self):
+        """Настройка интерфейса"""
+        layout = QVBoxLayout(self)
+
+        # Список рецептов
+        self.recipes_list = QListWidget()
+        self.recipes_list.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {COLORS['surface']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 8px;
+            }}
+            QListWidget::item {{
+                padding: 12px;
+                border-bottom: 1px solid {COLORS['border']};
+            }}
+            QListWidget::item:selected {{
+                background-color: {COLORS['primary_light']};
+            }}
+        """)
+        self.recipes_list.itemClicked.connect(self.select_recipe)
+        layout.addWidget(self.recipes_list)
+
+        # Информация о рецепте
+        self.recipe_info = QLabel("Выберите блюдо из списка")
+        self.recipe_info.setStyleSheet(f"""
+            font-size: 14px;
+            padding: 12px;
+            background-color: {COLORS['background']};
+            border-radius: 8px;
+        """)
+        layout.addWidget(self.recipe_info)
+
+        # Кнопки
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept_selection)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self.load_recipes()
+
+    def load_recipes(self):
+        """Загрузка рецептов"""
+        from database.operations import get_all_recipes, get_recipes_by_diet
+
+        if self.diet_type:
+            recipes = get_recipes_by_diet(self.diet_type)
+        else:
+            recipes = get_all_recipes()
+
+        for recipe in recipes:
+            item = QListWidgetItem()
+            item.setText(f"{recipe.name}\n   🔥 {int(recipe.calories)} ккал | ⏱️ {recipe.prep_time} мин")
+            item.setData(Qt.ItemDataRole.UserRole, recipe)
+            self.recipes_list.addItem(item)
+
+    def select_recipe(self, item):
+        """Выбор рецепта"""
+        recipe = item.data(Qt.ItemDataRole.UserRole)
+        self.selected_recipe = recipe
+
+        info = f"""
+<b>{recipe.name}</b><br>
+Калории: {int(recipe.calories)} ккал<br>
+Белки: {int(recipe.protein)}г | Жиры: {int(recipe.fat)}г | Углеводы: {int(recipe.carbs)}г<br>
+Время приготовления: {recipe.prep_time} мин<br>
+{recipe.description or ''}
+"""
+        self.recipe_info.setText(info)
+
+    def accept_selection(self):
+        """Подтверждение выбора"""
+        if self.selected_recipe:
+            self.accept()
+
+    def get_selected_recipe(self) -> Recipe:
+        """Получение выбранного рецепта"""
+        return self.selected_recipe
