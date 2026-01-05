@@ -58,6 +58,13 @@ class AddMealDialog(QDialog):
 
         # Выбранный продукт
         self.selected_product_label = QLabel("Выбранный продукт: -")
+        self.selected_product_label.setWordWrap(True)
+        self.selected_product_label.setStyleSheet(f"""
+            color: {COLORS['text_primary']};
+            background-color: {COLORS['background']};
+            padding: 8px;
+            border-radius: 6px;
+        """)
         layout.addWidget(self.selected_product_label)
 
         layout.addSpacing(12)

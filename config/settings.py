@@ -1,10 +1,16 @@
 # Настройки приложения HealthAI
 import os
 
+# Определение корневой директории проекта
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 # Пути к файлам
-APP_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA_DIR = os.path.join(APP_DIR, 'assets')
-DB_PATH = os.path.join(APP_DIR, 'healthai.db')
+DATA_DIR = os.path.join(BASE_DIR, 'assets')
+DB_DIR = os.path.join(BASE_DIR, 'database')
+DB_PATH = os.path.join(DB_DIR, 'healthai.db')
+
+# Создаём директорию для БД если не существует
+os.makedirs(DB_DIR, exist_ok=True)
 
 # Настройки приложения
 APP_NAME = "HealthAI"

@@ -53,6 +53,8 @@ class RecipeCard(QFrame):
             font-weight: bold;
             color: {COLORS['text_primary']};
         """)
+        name_label.setWordWrap(True)
+        name_label.setMaximumHeight(44)
         info_layout.addWidget(name_label)
 
         # Теги диет

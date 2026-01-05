@@ -13,31 +13,50 @@ HealthAI - Умный гид по здоровому питанию
 import sys
 import os
 from PyQt6.QtWidgets import QApplication
+# from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont # QIcon
 
 # Добавление родительской директории в путь
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config.settings import APP_NAME, APP_VERSION
-from database.init_db import init_database, populate_initial_data
+from config.settings import APP_NAME, APP_VERSION, BASE_DIR
+from database.init_db import init_database, populate_initial_data, get_engine
+from database.operations import get_user
 from ui.main_window import MainWindow
+
+
+def check_first_launch():
+    """Проверка первого запуска приложения"""
+    db_path = os.path.join(BASE_DIR, 'database', 'healthai.db')
+    is_first_launch = not os.path.exists(db_path)
+
+    if is_first_launch:
+        print("🆕 Первый запуск приложения...")
+    else:
+        print("🔄 Повторный запуск приложения...")
+
+    return is_first_launch
 
 
 def setup_application():
     """Настройка приложения перед запуском"""
-    # Инициализация базы данных
     print(f"Инициализация {APP_NAME} v{APP_VERSION}...")
     print("-" * 40)
 
-    # Создание таблиц
-    init_database()
+    # Проверяем первый запуск
+    is_first_launch = check_first_launch()
+
+    # Создание таблиц базы данных
+    engine = init_database()
     print("✓ База данных инициализирована")
 
     # Заполнение начальными данными
     populate_initial_data()
-    print("✓ Начальные данные загружены")
 
     print("-" * 40)
     print("Готов к работе!\n")
+
+    return is_first_launch
 
 
 def main():
@@ -51,11 +70,24 @@ def main():
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("HealthAI")
 
-    # Инициализация
-    setup_application()
+    # Настройка шрифтов для лучшей читаемости
+    font = QFont()
+    font.setFamily('Segoe UI, Roboto, Arial, sans-serif')
+    font.setPointSize(10)
+    app.setFont(font)
+
+    # Инициализация базы данных
+    is_first_launch = setup_application()
 
     # Создание и показ главного окна
     window = MainWindow()
+
+    # Если первый запуск - показываем онбординг
+    if is_first_launch:
+        user = get_user()
+        if not user:
+            window.navigate_to("onboarding")
+
     window.show()
 
     # Запуск приложения

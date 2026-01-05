@@ -7,10 +7,9 @@
 import sys
 import os
 
-from core import get_diet_recommendations
-
 # Добавление пути к модулям
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 
 def test_imports():
     """Тест импорта всех модулей"""
@@ -97,7 +96,7 @@ def test_pezvner():
     """Тест диет Певзнера"""
     print("\nТестирование диет Певзнера...")
 
-    from core.pezvner import PevznerDiets
+    from core.pezvner import PevznerDiets, get_diet_recommendations
 
     # Получение всех диет
     diets = PevznerDiets.get_all_diets()
@@ -122,6 +121,12 @@ def test_pezvner():
 def test_recommender():
     """Тест рекомендательной системы"""
     print("\nТестирование рекомендательной системы...")
+
+    from database.init_db import init_database, populate_initial_data
+
+    # Инициализация базы данных (обязательно для тестов рекомендаций)
+    init_database()
+    populate_initial_data()
 
     from core.recommender import SimpleRecommender
 
@@ -148,7 +153,7 @@ def test_database():
     from database.operations import get_session, get_all_recipes, get_all_achievements
 
     # Инициализация БД
-    init_database()
+    engine = init_database()
     print("✓ База данных инициализирована")
 
     # Заполнение данными
