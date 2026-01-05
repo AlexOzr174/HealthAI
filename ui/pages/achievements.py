@@ -1,13 +1,13 @@
 # Страница достижений
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                              QFrame, QPushButton, QGridLayout, QProgressBar,
-                              QSpacerItem, QSizePolicy, QListWidget, QListWidgetItem,
-                              QScrollArea)
+                             QFrame, QPushButton, QGridLayout, QProgressBar,
+                             QSpacerItem, QSizePolicy, QListWidget, QListWidgetItem,
+                             QScrollArea)
 from PyQt6.QtCore import Qt
 
 from config.settings import COLORS
 from database.operations import (get_user, get_user_achievements,
-                                  get_available_achievements, get_all_achievements)
+                                 get_available_achievements, get_all_achievements)
 from database.models import Achievement
 
 
@@ -22,6 +22,9 @@ class AchievementCard(QFrame):
 
     def setup_ui(self):
         """Настройка интерфейса карточки"""
+        self.setMinimumSize(140, 160)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
         if self.unlocked:
             self.setStyleSheet(f"""
                 QFrame {{
@@ -284,8 +287,9 @@ class AchievementsPage(QWidget):
 
         layout.addSpacing(12)
 
-        # Контейнер с достижениями
-        scroll_layout = QHBoxLayout()
+        # Контейнер с достижениями (вертикальный для корректного отображения)
+        scroll_layout = QVBoxLayout()
+        scroll_layout.setSpacing(16)
 
         # Разблокированные достижения
         unlocked_frame = QFrame()
@@ -313,9 +317,15 @@ class AchievementsPage(QWidget):
                 background-color: transparent;
                 border: none;
             }}
+            QScrollArea QWidget {{
+                background-color: transparent;
+            }}
         """)
+        self.unlocked_scroll.setMinimumHeight(200)
         self.unlocked_container = QWidget()
+        self.unlocked_container.setStyleSheet("background-color: transparent;")
         self.unlocked_layout = QGridLayout(self.unlocked_container)
+        self.unlocked_layout.setSpacing(12)
         self.unlocked_scroll.setWidget(self.unlocked_container)
         unlocked_layout.addWidget(self.unlocked_scroll)
 
@@ -347,9 +357,15 @@ class AchievementsPage(QWidget):
                 background-color: transparent;
                 border: none;
             }}
+            QScrollArea QWidget {{
+                background-color: transparent;
+            }}
         """)
+        self.available_scroll.setMinimumHeight(200)
         self.available_container = QWidget()
+        self.available_container.setStyleSheet("background-color: transparent;")
         self.available_layout = QGridLayout(self.available_container)
+        self.available_layout.setSpacing(12)
         self.available_scroll.setWidget(self.available_container)
         available_layout.addWidget(self.available_scroll)
 

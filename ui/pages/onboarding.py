@@ -64,8 +64,8 @@ class OnboardingPage(QWidget):
         form_layout.setSpacing(20)
 
         # Шаг 1: Основная информация
-        step1_frame = self.create_step_frame("Шаг 1: Основная информация")
-        step1_layout = QGridLayout(step1_frame)
+        step1_frame, step1_layout = self.create_step_frame("Шаг 1: Основная информация")
+        step1_frame.setLayout(step1_layout)
 
         step1_layout.addWidget(QLabel("Ваше имя:"), 0, 0)
         self.name_input = QLineEdit()
@@ -102,8 +102,8 @@ class OnboardingPage(QWidget):
         form_layout.addWidget(step1_frame)
 
         # Шаг 2: Активность
-        step2_frame = self.create_step_frame("Шаг 2: Уровень активности")
-        step2_layout = QVBoxLayout(step2_frame)
+        step2_frame, step2_layout = self.create_step_frame("Шаг 2: Уровень активности")
+        step2_frame.setLayout(step2_layout)
 
         self.activity_combo = QComboBox()
         for level_id, level_data in ACTIVITY_LEVELS.items():
@@ -120,8 +120,8 @@ class OnboardingPage(QWidget):
         form_layout.addWidget(step2_frame)
 
         # Шаг 3: Цель
-        step3_frame = self.create_step_frame("Шаг 3: Ваша цель")
-        step3_layout = QVBoxLayout(step3_frame)
+        step3_frame, step3_layout = self.create_step_frame("Шаг 3: Ваша цель")
+        step3_frame.setLayout(step3_layout)
 
         self.goal_combo = QComboBox()
         for goal_id, goal_data in GOALS.items():
@@ -131,8 +131,8 @@ class OnboardingPage(QWidget):
         form_layout.addWidget(step3_frame)
 
         # Шаг 4: Медицинские показания (опционально)
-        step4_frame = self.create_step_frame("Шаг 4: Медицинские показания (необязательно)")
-        step4_layout = QVBoxLayout(step4_frame)
+        step4_frame, step4_layout = self.create_step_frame("Шаг 4: Медицинские показания (необязательно)")
+        step4_frame.setLayout(step4_layout)
 
         self.diet_combo = QComboBox()
         self.diet_combo.addItem("Без ограничений", None)
@@ -179,7 +179,7 @@ class OnboardingPage(QWidget):
 
         layout.addLayout(button_layout)
 
-    def create_step_frame(self, title: str) -> QFrame:
+    def create_step_frame(self, title: str) -> tuple:
         """Создание рамки для шага"""
         frame = QFrame()
         frame.setStyleSheet(f"""
@@ -191,7 +191,9 @@ class OnboardingPage(QWidget):
             }}
         """)
 
-        layout = QVBoxLayout(frame)
+        # Создаём GridLayout (но НЕ назначаем его фрейму - это сделает вызывающий код)
+        content_layout = QGridLayout()
+        content_layout.setSpacing(12)
 
         title_label = QLabel(title)
         title_label.setStyleSheet(f"""
@@ -199,11 +201,11 @@ class OnboardingPage(QWidget):
             font-weight: bold;
             color: {COLORS['primary_dark']};
         """)
-        layout.addWidget(title_label)
+        # Заголовок занимает обе колонки
+        content_layout.addWidget(title_label, 0, 0, 1, 2)
+        content_layout.addWidget(QLabel(), 1, 0)  # Spacer
 
-        layout.addSpacing(12)
-
-        return frame
+        return frame, content_layout
 
     def create_result_frame(self) -> QFrame:
         """Создание рамки с результатами"""

@@ -1,8 +1,8 @@
 # Диалоговые окна и утилиты
 from PyQt6.QtWidgets import (QDialog, QDialogButtonBox, QVBoxLayout, QHBoxLayout,
-                              QLabel, QPushButton, QLineEdit, QComboBox,
-                              QListWidget, QListWidgetItem, QFrame, QMessageBox,
-                              QGridLayout, QDoubleSpinBox)
+                             QLabel, QPushButton, QLineEdit, QComboBox,
+                             QListWidget, QListWidgetItem, QFrame, QMessageBox,
+                             QGridLayout, QDoubleSpinBox)
 from PyQt6.QtCore import Qt
 
 from config.settings import COLORS, GOALS, ACTIVITY_LEVELS
@@ -44,57 +44,115 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # Имя
-        layout.addWidget(QLabel("Имя:"))
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Имя:"))
         self.name_input = QLineEdit(self.user.name if self.user else "")
-        layout.addWidget(self.name_input)
+        self.name_input.setPlaceholderText("Введите ваше имя")
+        name_layout.addWidget(self.name_input)
+        layout.addLayout(name_layout)
 
         # Цель
-        layout.addWidget(QLabel("Цель:"))
+        goal_layout = QHBoxLayout()
+        goal_layout.addWidget(QLabel("Цель:"))
         self.goal_combo = QComboBox()
         for goal_id, goal_data in GOALS.items():
-            self.goal_combo.addItem(f"{goal_data['name']} - {goal_data['description']}", goal_id)
-        if self.user:
+            self.goal_combo.addItem(f"{goal_data['name']}", goal_id)
+        if self.user and self.user.goal:
             self.goal_combo.setCurrentText(self.user.goal)
-        layout.addWidget(self.goal_combo)
+        goal_layout.addWidget(self.goal_combo)
+        layout.addLayout(goal_layout)
 
         # Уровень активности
-        layout.addWidget(QLabel("Уровень активности:"))
+        activity_layout = QHBoxLayout()
+        activity_layout.addWidget(QLabel("Уровень активности:"))
         self.activity_combo = QComboBox()
         for level_id, level_data in ACTIVITY_LEVELS.items():
             self.activity_combo.addItem(level_data['name'], level_id)
-        if self.user:
-            self.activity_combo.setCurrentText(self.user.activity_level)
-        layout.addWidget(self.activity_combo)
+        if self.user and self.user.activity_level:
+            # Найти и установить текущий уровень
+            for i in range(self.activity_combo.count()):
+                if self.activity_combo.itemData(i) == self.user.activity_level:
+                    self.activity_combo.setCurrentIndex(i)
+                    break
+        activity_layout.addWidget(self.activity_combo)
+        layout.addLayout(activity_layout)
 
         # Диета
-        layout.addWidget(QLabel("Тип диеты:"))
+        diet_layout = QHBoxLayout()
+        diet_layout.addWidget(QLabel("Тип диеты:"))
         self.diet_combo = QComboBox()
         self.diet_combo.addItem("Без ограничений", None)
         for diet in PevznerDiets.get_all_diets():
             self.diet_combo.addItem(f"Стол №{diet.number}: {diet.name}", diet.id)
         if self.user and self.user.diet_type:
-            self.diet_combo.setCurrentText(self.user.diet_type)
-        layout.addWidget(self.diet_combo)
+            for i in range(self.diet_combo.count()):
+                if self.diet_combo.itemData(i) == self.user.diet_type:
+                    self.diet_combo.setCurrentIndex(i)
+                    break
+        diet_layout.addWidget(self.diet_combo)
+        layout.addLayout(diet_layout)
 
-        # Кнопки
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self.save_settings)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        # Кнопки с явным стилем для различения
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        cancel_btn = QPushButton("Отмена")
+        cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['border']};
+                color: {COLORS['text_primary']};
+                border: none;
+                border-radius: 8px;
+                padding: 10px 24px;
+                min-width: 100px;
+            }}
+            QPushButton:hover {{ background-color: {COLORS['text_hint']}; }}
+        """)
+        cancel_btn.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_btn)
+
+        ok_btn = QPushButton("OK")
+        ok_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLORS['primary']};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 24px;
+                min-width: 100px;
+            }}
+            QPushButton:hover {{ background-color: {COLORS['primary_hover']}; }}
+        """)
+        ok_btn.clicked.connect(self.save_settings)
+        button_layout.addWidget(ok_btn)
+
+        layout.addLayout(button_layout)
 
     def save_settings(self):
         """Сохранение настроек"""
-        if not self.user:
+        name = self.name_input.text().strip()
+        if not name:
+            from .dialogs import show_error
+            show_error(self, "Ошибка", "Введите ваше имя")
             return
 
         user_data = {
-            'name': self.name_input.text(),
+            'name': name,
             'goal': self.goal_combo.currentData(),
             'activity_level': self.activity_combo.currentData(),
             'diet_type': self.diet_combo.currentData(),
         }
+
+        # Если пользователя нет (новый пользователь), добавляем обязательные поля
+        if not self.user:
+            user_data['age'] = 25  # Значение по умолчанию
+            user_data['height'] = 170  # Значение по умолчанию
+            user_data['weight'] = 70  # Значение по умолчанию
+            user_data['gender'] = 'male'  # Значение по умолчанию
+            user_data['bmr'] = 0
+            user_data['tdee'] = 0
+            user_data['target_calories'] = 0
+            user_data['xp'] = 10
 
         save_user(user_data)
         self.accept()
