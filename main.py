@@ -13,8 +13,8 @@ HealthAI - Умный гид по здоровому питанию
 import sys
 import os
 from PyQt6.QtWidgets import QApplication
-# from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont # QIcon
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QIcon
 
 # Добавление родительской директории в путь
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
