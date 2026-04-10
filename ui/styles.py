@@ -1,10 +1,11 @@
 # Стили и темы для интерфейса HealthAI
 from PyQt6.QtCore import QSize
 from PyQt6.QtWidgets import QPushButton, QLineEdit, QLabel, QComboBox, QTextEdit
+from typing import Dict, Any
 
 
-# Цветовая палитра
-COLORS = {
+# Цветовая палитра - Светлая тема
+COLORS_LIGHT = {
     'primary': '#2E7D32',           # Медицинский зелёный
     'primary_light': '#81C784',     # Светло-зелёный
     'primary_dark': '#1B5E20',      # Тёмно-зелёный
@@ -13,20 +14,64 @@ COLORS = {
     'secondary_light': '#FFAB91',   # Светло-оранжевый
     'background': '#F5F7FA',        # Светло-серый фон
     'surface': '#FFFFFF',           # Белый для карточек
+    'surface_hover': '#F8F9FA',     # Фон при наведении
     'error': '#E53935',             # Красный для ошибок
     'error_light': '#FFCDD2',       # Светло-красный для фона
     'warning': '#FFA726',           # Оранжевый для предупреждений
     'warning_light': '#FFE0B2',     # Светло-оранжевый для фона
     'success': '#66BB6A',           # Зелёный для успеха
     'success_light': '#C8E6C9',     # Светло-зелёный для фона
+    'info': '#42A5F5',              # Синий для информации
+    'info_light': '#BBDEFB',        # Светло-синий
     'text_primary': '#212121',      # Основной текст
     'text_secondary': '#757575',     # Вторичный текст
     'text_hint': '#9E9E9E',         # Текст-подсказка
+    'text_on_primary': '#FFFFFF',   # Текст на primary фоне
     'border': '#E0E0E0',            # Границы элементов
     'border_focus': '#2E7D32',      # Граница при фокусе
     'divider': '#BDBDBD',           # Разделитель
     'shadow': '#40000000',          # Тень
+    'sidebar_bg': '#FFFFFF',        # Фон сайдбара
+    'card_bg': '#FFFFFF',           # Фон карточек
+    'gradient_start': '#E8F5E9',    # Начало градиента
+    'gradient_end': '#C8E6C9',      # Конец градиента
 }
+
+# Цветовая палитра - Тёмная тема
+COLORS_DARK = {
+    'primary': '#66BB6A',           # Светло-зелёный для тёмной темы
+    'primary_light': '#81C784',     # Ещё светлее
+    'primary_dark': '#2E7D32',      # Оригинальный зелёный
+    'primary_hover': '#81C784',     # При наведении
+    'secondary': '#FF8A65',         # Светло-оранжевый
+    'secondary_light': '#FFAB91',   
+    'background': '#121212',        # Тёмный фон
+    'surface': '#1E1E1E',           # Тёмные карточки
+    'surface_hover': '#2C2C2C',     # Фон при наведении
+    'error': '#EF5350',             # Красный
+    'error_light': '#5D4037',       
+    'warning': '#FFA726',           
+    'warning_light': '#5D4037',     
+    'success': '#66BB6A',           
+    'success_light': '#1B5E20',     
+    'info': '#64B5F6',              
+    'info_light': '#0D47A1',        
+    'text_primary': '#E0E0E0',      # Светлый текст
+    'text_secondary': '#B0B0B0',    
+    'text_hint': '#757575',         
+    'text_on_primary': '#121212',   # Тёмный текст на primary
+    'border': '#333333',            
+    'border_focus': '#66BB6A',      
+    'divider': '#424242',           
+    'shadow': '#80000000',          
+    'sidebar_bg': '#1E1E1E',        
+    'card_bg': '#1E1E1E',           
+    'gradient_start': '#1B5E20',    
+    'gradient_end': '#2E7D32',      
+}
+
+# Активная цветовая схема (по умолчанию светлая)
+COLORS = COLORS_LIGHT.copy()
 
 # Размеры шрифтов
 FONTS = {
@@ -37,6 +82,38 @@ FONTS = {
     'caption': 12,
     'small': 10,
 }
+
+# Текущая тема ('light' или 'dark')
+CURRENT_THEME = 'light'
+
+
+def set_theme(theme: str = 'light'):
+    """
+    Установка темы приложения.
+    
+    Args:
+        theme: 'light' или 'dark'
+    """
+    global COLORS, CURRENT_THEME
+    if theme == 'dark':
+        COLORS = COLORS_DARK.copy()
+        CURRENT_THEME = 'dark'
+    else:
+        COLORS = COLORS_LIGHT.copy()
+        CURRENT_THEME = 'light'
+
+
+def toggle_theme() -> str:
+    """
+    Переключение темы на противоположную.
+    
+    Returns:
+        Название новой темы
+    """
+    global CURRENT_THEME
+    new_theme = 'dark' if CURRENT_THEME == 'light' else 'light'
+    set_theme(new_theme)
+    return new_theme
 
 
 def get_stylesheet() -> str:
@@ -391,7 +468,104 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
     background-color: {COLORS['error_light']};
     color: {COLORS['error']};
 }}
+
+/* === Градиентные карточки === */
+.gradient-card {{
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 {COLORS['gradient_start']},
+        stop:1 {COLORS['gradient_end']});
+    border-radius: 16px;
+    padding: 20px;
+}}
+
+/* === Умный поиск === */
+.search-box {{
+    background-color: {COLORS['surface']};
+    border: 2px solid {COLORS['border']};
+    border-radius: 25px;
+    padding: 12px 20px 12px 45px;
+    font-size: {FONTS['body']}px;
+    min-height: 48px;
+}}
+
+.search-box:focus {{
+    border-color: {COLORS['primary']};
+    background-color: {COLORS['surface']};
+}}
+
+.search-icon {{
+    background-color: transparent;
+    border: none;
+    font-size: 18px;
+    padding: 0px;
+    min-width: 36px;
+}}
+
+/* === Карточка с тенью === */
+.shadow-card {{
+    background-color: {COLORS['surface']};
+    border-radius: 16px;
+    padding: 20px;
+}}
+
+/* === Бейджи и метки === */
+.badge {{
+    background-color: {COLORS['primary']};
+    color: {COLORS['text_on_primary']};
+    border-radius: 12px;
+    padding: 4px 12px;
+    font-size: {FONTS['small']}px;
+    font-weight: 600;
+}}
+
+.badge.success {{
+    background-color: {COLORS['success']};
+}}
+
+.badge.warning {{
+    background-color: {COLORS['warning']};
+}}
+
+.badge.error {{
+    background-color: {COLORS['error']};
+}}
+
+.badge.info {{
+    background-color: {COLORS['info']};
+}}
+
+/* === Анимированные кнопки === */
+.animated-button {{
+    background-color: {COLORS['primary']};
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 24px;
+    font-size: {FONTS['body']}px;
+    font-weight: 600;
+    min-height: 48px;
+}}
+
+.animated-button:hover {{
+    background-color: {COLORS['primary_hover']};
+    padding: 14px 26px;
+}}
+
+.animated-button:pressed {{
+    background-color: {COLORS['primary_dark']};
+}}
 """
+
+
+def get_modern_card_style() -> str:
+    """Стиль современной карточки с тенью"""
+    return f"""
+        QFrame {{
+            background-color: {COLORS['surface']};
+            border-radius: 16px;
+            padding: 20px;
+        }}
+    """
 
 
 def get_button_style(variant: str = 'primary') -> str:

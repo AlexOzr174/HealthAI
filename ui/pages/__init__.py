@@ -5,8 +5,12 @@ from .diary import DiaryPage
 from .planner import PlannerPage
 from .recipes import RecipesPage
 from .achievements import AchievementsPage
+from .settings_notifications import NotificationsSettingsPage
+from .settings_diets import SpecialDietsPage
+from .settings_api import APIIntegrationPage
 
 __all__ = [
     'OnboardingPage', 'DashboardPage', 'DiaryPage',
-    'PlannerPage', 'RecipesPage', 'AchievementsPage'
+    'PlannerPage', 'RecipesPage', 'AchievementsPage',
+    'NotificationsSettingsPage', 'SpecialDietsPage', 'APIIntegrationPage'
 ]

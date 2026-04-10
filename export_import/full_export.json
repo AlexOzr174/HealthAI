@@ -1,0 +1,63 @@
+{
+  "export_info": {
+    "date": "2026-04-10T15:29:59.042399",
+    "version": "1.0",
+    "app": "HealthAI"
+  },
+  "user": {
+    "id": 1,
+    "name": "Тестовый Пользователь 2",
+    "gender": "male",
+    "age": 30,
+    "height": 175.0,
+    "weight": 70.0,
+    "activity_level": "moderate",
+    "goal": "lose",
+    "target_calories": 2172.0,
+    "xp": 50,
+    "level": 1
+  },
+  "meals": [
+    {
+      "id": 1,
+      "name": "Овсяная каша",
+      "meal_type": "breakfast",
+      "amount": 250.0,
+      "calories": 320.0,
+      "protein": 12.0,
+      "fat": 8.0,
+      "carbs": 52.0,
+      "meal_date": "2026-04-10T15:01:45.646513",
+      "meal_time": "15:01"
+    },
+    {
+      "id": 2,
+      "name": "Овсяная каша",
+      "meal_type": "breakfast",
+      "amount": 250.0,
+      "calories": 320.0,
+      "protein": 12.0,
+      "fat": 8.0,
+      "carbs": 52.0,
+      "meal_date": "2026-04-10T15:02:06.943844",
+      "meal_time": "15:02"
+    },
+    {
+      "id": 3,
+      "name": "Овсяная каша",
+      "meal_type": "breakfast",
+      "amount": 250.0,
+      "calories": 320.0,
+      "protein": 12.0,
+      "fat": 8.0,
+      "carbs": 52.0,
+      "meal_date": "2026-04-10T15:02:26.864447",
+      "meal_time": "15:02"
+    }
+  ],
+  "statistics": {
+    "total_meals": 3,
+    "total_calories": 960.0,
+    "avg_daily_calories": 0.41903099083369705
+  }
+}

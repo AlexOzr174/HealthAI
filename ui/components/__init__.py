@@ -1,4 +1,8 @@
 # Компоненты интерфейса HealthAI
-from .dialogs import show_message, show_error, SettingsDialog, RecipeSelectionDialog
+from ui.components.dialogs import *
+from ui.components.search_widget import SmartSearchWidget, SearchSuggestionsPopup
 
-__all__ = ['show_message', 'show_error', 'SettingsDialog', 'RecipeSelectionDialog']
+__all__ = [
+    'SmartSearchWidget',
+    'SearchSuggestionsPopup',
+]
