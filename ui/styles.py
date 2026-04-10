@@ -675,3 +675,97 @@ class IconSize:
     XLARGE = QSize(48, 48)
     AVATAR = QSize(64, 64)
     TILE = QSize(96, 96)
+
+
+class Styles:
+    """
+    Класс-менеджер стилей для приложения HealthAI.
+    Предоставляет доступ к цветам, темам и методам применения стилей.
+    """
+    
+    def __init__(self):
+        self.current_theme = 'light'
+        self.colors = COLORS_LIGHT.copy()
+    
+    def set_theme(self, theme: str):
+        """
+        Установка текущей темы.
+        
+        Args:
+            theme: 'light' или 'dark'
+        """
+        global CURRENT_THEME, COLORS
+        
+        if theme == 'dark':
+            CURRENT_THEME = 'dark'
+            COLORS = COLORS_DARK.copy()
+        else:
+            CURRENT_THEME = 'light'
+            COLORS = COLORS_LIGHT.copy()
+        
+        self.current_theme = theme
+    
+    def toggle_theme(self):
+        """Переключение между светлой и тёмной темой"""
+        new_theme = 'dark' if self.current_theme == 'light' else 'light'
+        self.set_theme(new_theme)
+        return self.current_theme
+    
+    def get_colors(self) -> Dict[str, str]:
+        """Получение текущей цветовой палитры"""
+        return COLORS.copy()
+    
+    def get_color(self, name: str) -> str:
+        """
+        Получение конкретного цвета по имени.
+        
+        Args:
+            name: Имя цвета (например, 'primary', 'background')
+            
+        Returns:
+            HEX код цвета
+        """
+        return COLORS.get(name, '#000000')
+    
+    def apply_styles_to_widget(self, widget):
+        """
+        Применение базовых стилей к виджету.
+        
+        Args:
+            widget: PyQt6 виджет
+        """
+        widget.setStyleSheet(f"""
+            QWidget {{
+                background-color: {COLORS['background']};
+                color: {COLORS['text_primary']};
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            }}
+            QLabel {{
+                color: {COLORS['text_primary']};
+            }}
+            QPushButton {{
+                background-color: {COLORS['primary']};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS['primary_hover']};
+            }}
+            QLineEdit, QTextEdit, QComboBox {{
+                background-color: {COLORS['surface']};
+                color: {COLORS['text_primary']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 6px;
+                padding: 8px 12px;
+            }}
+            QLineEdit:focus, QTextEdit:focus, QComboBox:focus {{
+                border: 1px solid {COLORS['border_focus']};
+            }}
+        """)
+
+
+# Глобальный экземпляр для удобства
+styles_manager = Styles()
