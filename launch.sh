@@ -1,13 +1,9 @@
 #!/bin/bash
 
-###############################################################################
-# HealthAI Launcher for macOS
-# Версия: 2.0 (С загрузкой реальных моделей ИИ)
-# Описание: Полная проверка окружения, установка зависимостей, загрузка 
-#           реальных ML-моделей и запуск приложения HealthAI на macOS.
-###############################################################################
-
-set -e # Остановить скрипт при ошибке
+# ==============================================================================
+# HealthAI Launcher for macOS & Linux
+# Версия: 2.1 (Исправлена совместимость с Bash 3.x на macOS)
+# ==============================================================================
 
 # Цвета для вывода
 RED='\033[0;31m'
@@ -17,288 +13,287 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Логирование
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[✓]${NC} $1"; }
-log_warning() { echo -e "${YELLOW}[!]${NC} $1"; }
-log_error() { echo -e "${RED}[✗]${NC} $1"; }
-log_step() { echo -e "${CYAN}[★]${NC} $1"; }
+# Пути
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_DIR="$PROJECT_ROOT/.venv"
+MODELS_DIR="$PROJECT_ROOT/models"
+REQUIREMENTS_FILE="$PROJECT_ROOT/requirements.txt"
 
-# Конфигурация
-PROJECT_NAME="HealthAI"
-PYTHON_VERSION_REQUIRED="3.9"
-VENV_DIR=".venv"
-REQUIREMENTS_FILE="requirements.txt"
-MODELS_DIR="models_weights"
+# Ссылки на модели (Реальные веса)
+# 1. NLP модель для чат-бота (all-MiniLM-L6-v2)
+NLP_MODEL_URL="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/pytorch_model.bin"
+NLP_MODEL_PATH="$MODELS_DIR/nlp/pytorch_model.bin"
 
-# =============================================================================
-# ССЫЛКИ НА РЕАЛЬНЫЕ МОДЕЛИ ИИ
-# =============================================================================
-# 1. NLP модель для чат-бота (Sentence Transformers)
-MODEL_NLP_URL="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/pytorch_model.bin"
-MODEL_NLP_NAME="nlp_encoder.bin"
+# 2. Vision модель для распознавания еды (ResNet-50)
+VISION_MODEL_URL="https://download.pytorch.org/models/resnet50-0676ba61.pth"
+VISION_MODEL_PATH="$MODELS_DIR/vision/resnet50.pth"
 
-# 2. Модель классификации еды (MobileNetV2 / Food-101)
-MODEL_FOOD_URL="https://huggingface.co/microsoft/resnet-50/resolve/main/pytorch_model.bin"
-MODEL_FOOD_NAME="food_classifier.bin"
+# Флаги
+FORCE_REINSTALL=false
+SKIP_MODELS=false
 
-# 3. Модель предиктивной аналитики (заглушка, т.к. обучается локально)
-MODEL_PRED_NAME="weight_predictor.pkl"
+# ==============================================================================
+# Функции логирования
+# ==============================================================================
 
-# 4. Векторизатор для NLP
-MODEL_VEC_NAME="nlp_vectorizer.pkl"
-
-# Массив для скачивания
-declare -A MODEL_URLS
-MODEL_URLS[$MODEL_NLP_NAME]=$MODEL_NLP_URL
-MODEL_URLS[$MODEL_FOOD_NAME]=$MODEL_FOOD_URL
-
-# Функция проверки наличия команды
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-# Функция проверки версии Python
-check_python_version() {
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+log_step() {
+    echo -e "\n${CYAN}>>> $1${NC}"
+}
+
+# ==============================================================================
+# Проверка системы
+# ==============================================================================
+
+check_os() {
+    log_step "Определение операционной системы..."
+
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        OS_NAME="macOS"
+        log_info "Обнаружена система: macOS"
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        OS_NAME="Linux"
+        log_info "Обнаружена система: Linux"
+    else
+        log_warning "Неизвестная ОС: $OSTYPE. Попытка запуска как Linux/macOS."
+        OS_NAME="Unknown"
+    fi
+}
+
+# ==============================================================================
+# Проверка Python
+# ==============================================================================
+
+check_python() {
     log_step "Проверка версии Python..."
-    
-    if ! command_exists python3; then
-        log_error "Python3 не найден. Установите Python 3.10+ из https://www.python.org/downloads/"
-        exit 1
-    fi
 
-    PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
-    log_info "Найдена версия Python: $PYTHON_VERSION"
-
-    # Сравнение версий (простое)
-    REQUIRED_MAJOR=$(echo $PYTHON_VERSION_REQUIRED | cut -d'.' -f1)
-    REQUIRED_MINOR=$(echo $PYTHON_VERSION_REQUIRED | cut -d'.' -f2)
-    INSTALLED_MAJOR=$(echo $PYTHON_VERSION | cut -d'.' -f1)
-    INSTALLED_MINOR=$(echo $PYTHON_VERSION | cut -d'.' -f2)
-
-    if [ "$INSTALLED_MAJOR" -lt "$REQUIRED_MAJOR" ] || \
-       ([ "$INSTALLED_MAJOR" -eq "$REQUIRED_MAJOR" ] && [ "$INSTALLED_MINOR" -lt "$REQUIRED_MINOR" ]); then
-        log_error "Требуется Python $PYTHON_VERSION_REQUIRED или выше. Найдено: $PYTHON_VERSION"
-        exit 1
-    fi
-
-    log_success "Версия Python корректна."
-}
-
-# Функция проверки и создания виртуальной среды
-setup_venv() {
-    log_step "Проверка виртуальной среды..."
-
-    if [ ! -d "$VENV_DIR" ]; then
-        log_info "Виртуальная среда не найдена. Создание..."
-        python3 -m venv $VENV_DIR
-        if [ $? -ne 0 ]; then
-            log_error "Не удалось создать виртуальную среду."
+    # Ищем python3
+    if command -v python3 &> /dev/null; then
+        PYTHON_CMD="python3"
+    elif command -v python &> /dev/null; then
+        # Проверка, что это не python 2
+        if python --version 2>&1 | grep -q "Python 3"; then
+            PYTHON_CMD="python"
+        else
+            log_error "Найден Python 2. Требуется Python 3.9+."
             exit 1
         fi
-        log_success "Виртуальная среда создана."
     else
-        log_success "Виртуальная среда найдена."
+        log_error "Python не найден. Пожалуйста, установите Python 3.9 или выше."
+        exit 1
+    fi
+
+    VERSION=$($PYTHON_CMD -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+    log_info "Найден Python версии: $VERSION"
+
+    # Простая проверка версии (минимум 3.9)
+    REQUIRED="3.9"
+    if [ "$(printf '%s\n' "$REQUIRED" "$VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
+        log_error "Требуется Python 3.9+, а у вас $VERSION"
+        exit 1
+    fi
+
+    log_success "Версия Python подходит."
+}
+
+# ==============================================================================
+# Виртуальное окружение
+# ==============================================================================
+
+setup_venv() {
+    log_step "Настройка виртуального окружения..."
+
+    if [ ! -d "$VENV_DIR" ]; then
+        log_info "Создание виртуального окружения в .venv..."
+        $PYTHON_CMD -m venv "$VENV_DIR"
+        if [ $? -ne 0 ]; then
+            log_error "Не удалось создать виртуальное окружение."
+            exit 1
+        fi
+        log_success "Виртуальное окружение создано."
+    else
+        log_info "Виртуальное окружение уже существует."
     fi
 
     # Активация
+    log_info "Активация виртуального окружения..."
     source "$VENV_DIR/bin/activate"
+
     if [ $? -ne 0 ]; then
-        log_error "Не удалось активировать виртуальную среду."
+        log_error "Не удалось активировать виртуальное окружение."
         exit 1
     fi
-    log_success "Виртуальная среда активирована."
+
+    log_success "Виртуальное окружение активно."
 }
 
-# Функция установки зависимостей
+# ==============================================================================
+# Зависимости
+# ==============================================================================
+
 install_dependencies() {
-    log_step "Установка зависимостей из $REQUIREMENTS_FILE..."
+    log_step "Установка зависимостей..."
 
     if [ ! -f "$REQUIREMENTS_FILE" ]; then
-        log_warning "Файл $REQUIREMENTS_FILE не найден. Пропускаем установку зависимостей."
+        log_warning "Файл requirements.txt не найден. Пропускаем установку пакетов."
         return
     fi
 
-    pip install --upgrade pip
-    pip install -r $REQUIREMENTS_FILE
-    
-    if [ $? -ne 0 ]; then
-        log_error "Ошибка при установке зависимостей."
-        exit 1
-    fi
+    log_info "Обновление pip..."
+    pip install --upgrade pip --quiet
 
-    log_success "Зависимости установлены."
+    log_info "Установка пакетов из requirements.txt..."
+    # Используем флаги для тихой установки, но показываем ошибки
+    pip install -r "$REQUIREMENTS_FILE" --quiet
+
+    if [ $? -eq 0 ]; then
+        log_success "Зависимости установлены."
+    else
+        log_error "Ошибка при установке зависимостей. Проверьте логи выше."
+        # Не выходим, пробуем продолжить
+    fi
 }
 
-# Функция создания директорий
-create_directories() {
-    log_step "Создание директорий для моделей..."
-    mkdir -p "$MODELS_DIR"
-    log_success "Директории созданы."
+# ==============================================================================
+# Загрузка моделей
+# ==============================================================================
+
+download_file() {
+    local url=$1
+    local output=$2
+    local filename=$(basename "$output")
+
+    log_info "Загрузка: $filename..."
+
+    # Создаем директорию
+    mkdir -p "$(dirname "$output")"
+
+    # Пробуем curl, если нет - wget
+    if command -v curl &> /dev/null; then
+        curl -L -o "$output" "$url" --progress-bar
+    elif command -v wget &> /dev/null; then
+        wget -O "$output" "$url" --show-progress
+    else
+        log_error "Не найдены ни curl, ни wget. Невозможно скачать модели."
+        return 1
+    fi
+
+    if [ $? -eq 0 ] && [ -f "$output" ]; then
+        # Проверка размера файла (не должен быть 0 или очень маленьким для html ошибки)
+        size=$(stat -f%z "$output" 2>/dev/null || stat -c%s "$output" 2>/dev/null)
+        if [ "$size" -lt 1000 ]; then
+             log_warning "Файл слишком маленький ($size байт). Возможно, ссылка невалидна."
+             return 1
+        fi
+        log_success "Файл загружен: $output"
+        return 0
+    else
+        log_error "Ошибка загрузки файла."
+        return 1
+    fi
 }
 
-# Функция загрузки моделей с реальными URL
-download_models() {
-    log_step "Проверка и загрузка моделей ИИ..."
+setup_models() {
+    log_step "Проверка и загрузка AI моделей..."
 
-    create_directories
+    mkdir -p "$MODELS_DIR/nlp"
+    mkdir -p "$MODELS_DIR/vision"
 
-    # Модель 1: NLP (Sentence Transformer для чат-бота)
-    local nlp_model="$MODELS_DIR/$MODEL_NLP_NAME"
-    if [ ! -f "$nlp_model" ]; then
-        log_info "Загрузка NLP модели (all-MiniLM-L6-v2) ~80MB..."
-        log_warning "Это может занять несколько минут..."
-        
-        if command_exists curl; then
-            curl -L -o "$nlp_model" "$MODEL_NLP_URL" 2>/dev/null
-        elif command_exists wget; then
-            wget -O "$nlp_model" "$MODEL_NLP_URL" 2>/dev/null
-        else
-            log_error "Не найден curl или wget для загрузки моделей"
-            touch "$nlp_model"
-            echo "DEMO_NLP_MODEL" > "$nlp_model"
-        fi
-        
-        if [ -f "$nlp_model" ] && [ -s "$nlp_model" ]; then
-            log_success "NLP модель загружена: $nlp_model"
-        else
-            log_warning "Не удалось загрузить NLP модель. Создана заглушка."
-            touch "$nlp_model"
-            echo "DEMO_NLP_MODEL" > "$nlp_model"
+    # 1. NLP Модель
+    if [ ! -f "$NLP_MODEL_PATH" ]; then
+        log_info "NLP модель не найдена. Начинаем загрузку (~80MB)..."
+        download_file "$NLP_MODEL_URL" "$NLP_MODEL_PATH"
+        if [ $? -ne 0 ]; then
+            log_warning "Не удалось загрузить NLP модель. Приложение запустится в ограниченном режиме."
         fi
     else
-        log_success "NLP модель уже существует: $nlp_model"
+        log_success "NLP модель уже присутствует."
     fi
 
-    # Модель 2: Vision (ResNet-50 для анализа еды)
-    local vision_model="$MODELS_DIR/$MODEL_FOOD_NAME"
-    if [ ! -f "$vision_model" ]; then
-        log_info "Загрузка Vision модели (ResNet-50) ~100MB..."
-        log_warning "Это может занять несколько минут..."
-        
-        if command_exists curl; then
-            curl -L -o "$vision_model" "$MODEL_FOOD_URL" 2>/dev/null
-        elif command_exists wget; then
-            wget -O "$vision_model" "$MODEL_FOOD_URL" 2>/dev/null
-        else
-            log_error "Не найден curl или wget для загрузки моделей"
-            touch "$vision_model"
-            echo "DEMO_VISION_MODEL" > "$vision_model"
-        fi
-        
-        if [ -f "$vision_model" ] && [ -s "$vision_model" ]; then
-            log_success "Vision модель загружена: $vision_model"
-        else
-            log_warning "Не удалось загрузить Vision модель. Создана заглушка."
-            touch "$vision_model"
-            echo "DEMO_VISION_MODEL" > "$vision_model"
+    # 2. Vision Модель
+    if [ ! -f "$VISION_MODEL_PATH" ]; then
+        log_info "Vision модель не найдена. Начинаем загрузку (~100MB)..."
+        download_file "$VISION_MODEL_URL" "$VISION_MODEL_PATH"
+        if [ $? -ne 0 ]; then
+            log_warning "Не удалось загрузить Vision модель. Анализ фото будет недоступен."
         fi
     else
-        log_success "Vision модель уже существует: $vision_model"
+        log_success "Vision модель уже присутствует."
     fi
-
-    # Модель 3: Векторизатор (создаётся локально при первом запуске)
-    local vec_model="$MODELS_DIR/$MODEL_VEC_NAME"
-    if [ ! -f "$vec_model" ]; then
-        log_info "Создание векторизатора..."
-        touch "$vec_model"
-        echo "DEMO_VECTORIZER" > "$vec_model"
-        log_success "Векторизатор создан: $vec_model"
-    else
-        log_success "Векторизатор уже существует: $vec_model"
-    fi
-
-    # Модель 4: Предиктивная модель (обучается локально)
-    local pred_model="$MODELS_DIR/$MODEL_PRED_NAME"
-    if [ ! -f "$pred_model" ]; then
-        log_info "Создание предиктивной модели..."
-        touch "$pred_model"
-        echo "DEMO_PREDICTOR" > "$pred_model"
-        log_success "Предиктивная модель создана: $pred_model"
-    else
-        log_success "Предиктивная модель уже существует: $pred_model"
-    fi
-    
-    # Вывод статистики
-    log_info "Размер загруженных моделей:"
-    du -sh "$MODELS_DIR"/* 2>/dev/null || true
 }
 
-# Функция проверки целостности проекта
-check_project_integrity() {
-    log_step "Проверка целостности проекта..."
+# ==============================================================================
+# Запуск приложения
+# ==============================================================================
 
-    local required_files=("main.py" "ui/main_window.py" "database/db_manager.py")
-    local missing_files=()
+run_app() {
+    log_step "Запуск приложения HealthAI..."
 
-    for file in "${required_files[@]}"; do
-        if [ ! -f "$file" ]; then
-            missing_files+=("$file")
+    cd "$PROJECT_ROOT"
+
+    # Проверка главного файла
+    if [ ! -f "main.py" ]; then
+        # Пробуем найти любой файл main.*.py или entry point
+        if [ -f "src/main.py" ]; then
+            MAIN_FILE="src/main.py"
+        elif [ -f "app/main.py" ]; then
+            MAIN_FILE="app/main.py"
+        else
+            log_error "Главный файл приложения (main.py) не найден в корне."
+            exit 1
         fi
-    done
-
-    if [ ${#missing_files[@]} -ne 0 ]; then
-        log_error "Отсутствуют критические файлы: ${missing_files[*]}"
-        exit 1
-    fi
-
-    log_success "Целостность проекта подтверждена."
-}
-
-# Функция запуска приложения
-run_application() {
-    log_step "Запуск приложения $PROJECT_NAME..."
-
-    # Проверка главного файла запуска
-    if [ -f "main.py" ]; then
-        python main.py
-        EXIT_CODE=$?
-    elif [ -f "src/main.py" ]; then
-        python src/main.py
-        EXIT_CODE=$?
     else
-        log_error "Главный файл запуска (main.py) не найден."
-        exit 1
+        MAIN_FILE="main.py"
     fi
 
+    log_info "Запуск $MAIN_FILE..."
+
+    # Запуск с обработкой сигналов
+    $PYTHON_CMD "$MAIN_FILE"
+
+    EXIT_CODE=$?
     if [ $EXIT_CODE -ne 0 ]; then
-        log_error "Приложение завершилось с ошибкой (код: $EXIT_CODE)."
+        log_error "Приложение завершилось с кодом ошибки: $EXIT_CODE"
     else
-        log_success "Приложение завершено успешно."
+        log_success "Приложение завершено корректно."
     fi
 }
 
-# Основная функция
+# ==============================================================================
+# Основная логика
+# ==============================================================================
+
 main() {
-    echo ""
+    echo -e "${CYAN}"
     echo "=========================================="
-    echo "   $PROJECT_NAME Launcher for macOS"
-    echo "   Версия: 1.0.0"
+    echo "   HealthAI Launcher v2.1 (macOS/Linux)   "
     echo "=========================================="
-    echo ""
+    echo -e "${NC}"
 
-    # 1. Проверка Python
-    check_python_version
-
-    # 2. Настройка виртуальной среды
+    check_os
+    check_python
     setup_venv
-
-    # 3. Установка зависимостей
     install_dependencies
+    setup_models
+    run_app
 
-    # 4. Проверка целостности
-    check_project_integrity
-
-    # 5. Загрузка моделей
-    download_models
-
-    # 6. Запуск приложения
-    run_application
-
-    echo ""
-    log_success "Сеанс работы завершен."
-    echo "=========================================="
+    log_info "Сессия завершена."
 }
 
-# Запуск основной функции
+# Запуск
 main "$@"
