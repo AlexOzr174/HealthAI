@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-04-10T17:14:09.386000",
+  "project_name": "HealthAI",
+  "os_type": "linux",
+  "python_version": "3.12.10 (main, Apr  9 2025, 00:30:28) [GCC 12.2.0]",
+  "python_executable": "/usr/local/bin/python",
+  "virtual_env": false,
+  "models_dir": "/workspace/assets/models",
+  "models_status": {
+    "food_classifier.onnx": {
+      "status": "present",
+      "size_mb": 0.0
+    },
+    "nutrition_recommender.pkl": {
+      "status": "present",
+      "size_mb": 0.0
+    },
+    "recipe_generator.h5": {
+      "status": "present",
+      "size_mb": 0.0
+    }
+  }
+}

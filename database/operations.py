@@ -39,7 +39,9 @@ def save_user(user_data):
             user = User(**user_data)
             session.add(user)
         session.commit()
-        return user
+        # Возвращаем ID и имя перед закрытием сессии
+        result = {'id': user.id, 'name': user.name}
+        return result
     finally:
         session.close()
 
@@ -63,7 +65,18 @@ def add_meal(user_id, meal_data):
         meal = Meal(user_id=user_id, **meal_data)
         session.add(meal)
         session.commit()
-        return meal
+        # Возвращаем данные перед закрытием сессии
+        result = {
+            'id': meal.id,
+            'name': meal.name,
+            'calories': meal.calories,
+            'protein': meal.protein,
+            'fat': meal.fat,
+            'carbs': meal.carbs,
+            'meal_type': meal.meal_type,
+            'amount': meal.amount,
+        }
+        return result
     finally:
         session.close()
 
@@ -392,7 +405,9 @@ def add_user_xp(user_id, xp_amount):
             leveled_up = new_level > user.level
             user.level = new_level
             session.commit()
-            return user, leveled_up
+            # Возвращаем данные перед закрытием сессии
+            result = {'id': user.id, 'level': user.level, 'xp': user.xp}
+            return result, leveled_up
     finally:
         session.close()
 
