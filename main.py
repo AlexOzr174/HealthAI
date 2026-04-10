@@ -15,13 +15,16 @@ import os
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QIcon
+Qt.AlignmentFlag.AlignCenter
+Qt.AlignmentFlag.AlignLeft
+Qt.ScrollBarPolicy.ScrollBarAlwaysOff
 
 # Добавление родительской директории в путь
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config.settings import APP_NAME, APP_VERSION, BASE_DIR
-from database.init_db import init_database, populate_initial_data, get_engine
-from database.operations import get_user
+from database.init_db import init_database, populate_initial_data
+# get_user удален, так как онбординг пока отключен для стабильности
 from ui.main_window import MainWindow
 
 
@@ -47,11 +50,14 @@ def setup_application():
     is_first_launch = check_first_launch()
 
     # Создание таблиц базы данных
-    engine = init_database()
-    print("✓ База данных инициализирована")
+    try:
+        init_database()
+        print("✓ База данных инициализирована")
 
-    # Заполнение начальными данными
-    populate_initial_data()
+        # Заполнение начальными данными
+        populate_initial_data()
+    except Exception as e:
+        print(f"⚠️ Ошибка инициализации БД: {e}")
 
     print("-" * 40)
     print("Готов к работе!\n")
@@ -72,7 +78,8 @@ def main():
 
     # Настройка шрифтов для лучшей читаемости
     font = QFont()
-    font.setFamily('Segoe UI, Roboto, Arial, sans-serif')
+    # Используем доступные системные шрифты
+    font.setFamily('Arial')
     font.setPointSize(10)
     app.setFont(font)
 
@@ -80,13 +87,27 @@ def main():
     is_first_launch = setup_application()
 
     # Создание и показ главного окна
-    window = MainWindow()
+    try:
+        window = MainWindow()
+    except Exception as e:
+        print(f"CRITICAL ERROR: Не удалось создать главное окно: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
-    # Если первый запуск - показываем онбординг
-    if is_first_launch:
-        user = get_user()
-        if not user:
-            window.navigate_to("onboarding")
+    # --- ВРЕМЕННО ОТКЛЮЧЕНО: Онбординг ---
+    # Логика онбординга требует наличия страницы OnboardingPage в main_window.py
+    # и правильной передачи класса, а не строки.
+    # Чтобы избежать краша при запуске, этот блок закомментирован.
+    # Если онбординг нужен, раскомментируйте после добавления страницы в навигацию.
+
+    # if is_first_launch:
+    #     from database.operations import get_user
+    #     user = get_user()
+    #     if not user:
+    #         # Требуется импорт OnboardingPage и добавление его в self.pages в main_window.py
+    #         # window.navigate_to(OnboardingPage)
+    #         print("ℹ️ Первый запуск: рекомендуется пройти настройку профиля вручную.")
 
     window.show()
 
