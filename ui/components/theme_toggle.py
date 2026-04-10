@@ -1,7 +1,8 @@
 # Переключатель темы для HealthAI
 from PyQt6.QtWidgets import QWidget, QPushButton, QHBoxLayout, QLabel
 from PyQt6.QtCore import pyqtSignal
-from ui.styles import toggle_theme, COLORS
+from ui.styles import toggle_theme, Styles
+from config.settings import COLORS
 
 
 class ThemeToggle(QWidget):

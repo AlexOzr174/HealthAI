@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from config.settings import COLORS
-from ui.styles import get_stylesheet
+from ui.styles import Styles
 
 
 class SmartSearchWidget(QWidget):

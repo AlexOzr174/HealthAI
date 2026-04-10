@@ -1,111 +1,33 @@
-# ==============================================================================
-# HealthAI .gitignore
-# ==============================================================================
-
-# --- Python артефакты ---
+```
+# Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+*.pyc
+*.pyo
+*.pyd
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# --- Виртуальные окружения ---
-# Рекомендуется игнорировать все venv, но можно добавить исключения если нужно
-venv/
-ENV/
 env/
+venv/
 .venv/
-.pytest_cache/
-.mypy_cache/
-
-# --- IDE и редакторы ---
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-.project
-.pydevproject
-.settings/
-*.sublime-project
-*.sublime-workspace
-
-# --- macOS системные файлы ---
-.DS_Store
-.AppleDouble
-.LSOverride
-Icon
-._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
-
-# --- Базы данных и данные пользователя ---
-# Игнорируем SQLite БД, чтобы не коммитить личные данные пользователей
-*.db
-*.sqlite
-*.sqlite3
-healthai.db
-
-# --- Логи и временные файлы ---
-logs/
+.venv*/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
 *.log
-tmp/
-temp/
-.cache/
-
-# --- Тяжелые файлы и модели (ML) ---
-# Модели часто весят сотни мегабайт, лучше хранить их отдельно или скачивать при запуске
-models/
-weights/
-*.pth
-*.pt
-*.h5
-*.bin
-*.onnx
-*.pb
-
-# --- Отчеты и экспорт данных пользователей ---
-exports/
-reports/
-*.pdf
-*.csv
-*.json
-!config/*.json
-!assets/*.json
-
-# --- Секреты и конфигурация окружения ---
-.env
-.env.local
-.env.*.local
-*.pem
-*.key
-secrets.json
-config_private.py
-
-# --- Документация сборки ---
-MANIFEST
+*.pot
+*.pyc
+*.pyo
+*.pyd
+.MF
+tags
+TAGS
+*.tmproj
+*.sw*
+.DS_Store
+Thumbs.db
+```

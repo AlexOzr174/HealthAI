@@ -47,7 +47,7 @@ class MainWindow(QMainWindow):
         if NotificationService:
             try:
                 self.notification_service = NotificationService()
-                self.notification_service.start()
+                self.notification_service.start_all_timers()
             except Exception as e:
                 print(f"Warning: Не удалось запустить сервис уведомлений: {e}")
 
