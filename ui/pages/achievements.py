@@ -1,3 +1,4 @@
+# ui/pages/achievements.py
 # Страница достижений
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QFrame, QPushButton, QGridLayout, QProgressBar,
@@ -5,9 +6,27 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QScrollArea)
 from PyQt6.QtCore import Qt
 
-from config.settings import COLORS
+try:
+    from config.settings import COLORS
+except ImportError:
+    COLORS = {
+        'primary': '#3498DB',
+        'primary_dark': '#2980B9',
+        'primary_light': '#5DADE2',
+        'surface': '#FFFFFF',
+        'background': '#F0F2F5',
+        'text_primary': '#2C3E50',
+        'text_secondary': '#7F8C8D',
+        'text_hint': '#95A5A6',
+        'warning': '#F39C12',
+        'warning_light': '#FDEBD0',
+        'success': '#27AE60',
+        'border': '#E0E0E0',
+    }
+
 from database.operations import (get_user, get_user_achievements,
-                                 get_available_achievements, get_all_achievements)
+                                 get_available_achievements, get_all_achievements,
+                                 get_today_meals)
 from database.models import Achievement
 
 
@@ -21,7 +40,6 @@ class AchievementCard(QFrame):
         self.setup_ui()
 
     def setup_ui(self):
-        """Настройка интерфейса карточки"""
         self.setMinimumSize(140, 160)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
@@ -49,13 +67,11 @@ class AchievementCard(QFrame):
         layout.setSpacing(8)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Иконка
         icon_label = QLabel(self.achievement.icon)
         icon_label.setStyleSheet("font-size: 36px;")
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon_label)
 
-        # Название
         title_label = QLabel(self.achievement.title)
         title_label.setStyleSheet(f"""
             font-size: 14px;
@@ -65,7 +81,6 @@ class AchievementCard(QFrame):
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
 
-        # Описание
         desc_label = QLabel(self.achievement.description)
         desc_label.setStyleSheet(f"""
             font-size: 11px;
@@ -75,7 +90,6 @@ class AchievementCard(QFrame):
         desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(desc_label)
 
-        # Награда XP
         if self.unlocked:
             xp_label = QLabel(f"+{self.achievement.xp_reward} XP")
             xp_label.setStyleSheet(f"""
@@ -94,26 +108,22 @@ class AchievementCard(QFrame):
 class AchievementsPage(QWidget):
     """Страница достижений"""
 
-    def __init__(self, parent=None):
+    def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
-        self.main_window = parent
+        self.main_window = main_window
         self.setup_ui()
 
     def setup_ui(self):
-        """Настройка интерфейса"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
 
-        # Профиль пользователя и прогресс
         profile_frame = self.create_profile_section()
         layout.addWidget(profile_frame)
 
-        # Статистика
         stats_frame = self.create_stats_section()
         layout.addWidget(stats_frame)
 
-        # Сетка достижений
         achievements_frame = self.create_achievements_grid()
         layout.addWidget(achievements_frame, stretch=1)
 
@@ -124,7 +134,6 @@ class AchievementsPage(QWidget):
         self.update_achievements()
 
     def create_profile_section(self) -> QFrame:
-        """Создание секции профиля"""
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
@@ -140,9 +149,7 @@ class AchievementsPage(QWidget):
 
         layout = QHBoxLayout(frame)
 
-        # Аватар и имя
         profile_layout = QVBoxLayout()
-
         avatar_label = QLabel("👤")
         avatar_label.setStyleSheet("font-size: 48px;")
 
@@ -162,12 +169,9 @@ class AchievementsPage(QWidget):
         profile_layout.addWidget(avatar_label)
         profile_layout.addWidget(self.user_name)
         profile_layout.addWidget(self.user_title)
-
         layout.addLayout(profile_layout)
-
         layout.addStretch()
 
-        # Прогресс уровня
         level_layout = QVBoxLayout()
         level_layout.setSpacing(8)
 
@@ -216,7 +220,6 @@ class AchievementsPage(QWidget):
         return frame
 
     def create_stats_section(self) -> QFrame:
-        """Создание секции статистики"""
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
@@ -267,13 +270,8 @@ class AchievementsPage(QWidget):
         return frame
 
     def create_achievements_grid(self) -> QFrame:
-        """Создание сетки достижений"""
         frame = QFrame()
-        frame.setStyleSheet(f"""
-            QFrame {{
-                background-color: transparent;
-            }}
-        """)
+        frame.setStyleSheet("background-color: transparent;")
 
         layout = QVBoxLayout(frame)
 
@@ -284,14 +282,12 @@ class AchievementsPage(QWidget):
             color: {COLORS['text_primary']};
         """)
         layout.addWidget(title)
-
         layout.addSpacing(12)
 
-        # Контейнер с достижениями (вертикальный для корректного отображения)
         scroll_layout = QVBoxLayout()
         scroll_layout.setSpacing(16)
 
-        # Разблокированные достижения
+        # Разблокированные
         unlocked_frame = QFrame()
         unlocked_frame.setStyleSheet(f"""
             QFrame {{
@@ -301,7 +297,6 @@ class AchievementsPage(QWidget):
             }}
         """)
         unlocked_layout = QVBoxLayout(unlocked_frame)
-
         unlocked_title = QLabel("✅ Разблокировано")
         unlocked_title.setStyleSheet(f"""
             font-size: 14px;
@@ -312,26 +307,17 @@ class AchievementsPage(QWidget):
 
         self.unlocked_scroll = QScrollArea()
         self.unlocked_scroll.setWidgetResizable(True)
-        self.unlocked_scroll.setStyleSheet(f"""
-            QScrollArea {{
-                background-color: transparent;
-                border: none;
-            }}
-            QScrollArea QWidget {{
-                background-color: transparent;
-            }}
-        """)
+        self.unlocked_scroll.setStyleSheet("background-color: transparent; border: none;")
         self.unlocked_scroll.setMinimumHeight(200)
         self.unlocked_container = QWidget()
         self.unlocked_container.setStyleSheet("background-color: transparent;")
-        self.unlocked_layout = QGridLayout(self.unlocked_container)
-        self.unlocked_layout.setSpacing(12)
+        self.unlocked_layout_grid = QGridLayout(self.unlocked_container)
+        self.unlocked_layout_grid.setSpacing(12)
         self.unlocked_scroll.setWidget(self.unlocked_container)
         unlocked_layout.addWidget(self.unlocked_scroll)
-
         scroll_layout.addWidget(unlocked_frame)
 
-        # Доступные достижения
+        # Доступные
         available_frame = QFrame()
         available_frame.setStyleSheet(f"""
             QFrame {{
@@ -341,7 +327,6 @@ class AchievementsPage(QWidget):
             }}
         """)
         available_layout = QVBoxLayout(available_frame)
-
         available_title = QLabel("🎯 Доступные")
         available_title.setStyleSheet(f"""
             font-size: 14px;
@@ -352,39 +337,27 @@ class AchievementsPage(QWidget):
 
         self.available_scroll = QScrollArea()
         self.available_scroll.setWidgetResizable(True)
-        self.available_scroll.setStyleSheet(f"""
-            QScrollArea {{
-                background-color: transparent;
-                border: none;
-            }}
-            QScrollArea QWidget {{
-                background-color: transparent;
-            }}
-        """)
+        self.available_scroll.setStyleSheet("background-color: transparent; border: none;")
         self.available_scroll.setMinimumHeight(200)
         self.available_container = QWidget()
         self.available_container.setStyleSheet("background-color: transparent;")
-        self.available_layout = QGridLayout(self.available_container)
-        self.available_layout.setSpacing(12)
+        self.available_layout_grid = QGridLayout(self.available_container)
+        self.available_layout_grid.setSpacing(12)
         self.available_scroll.setWidget(self.available_container)
         available_layout.addWidget(self.available_scroll)
-
         scroll_layout.addWidget(available_frame)
 
         layout.addLayout(scroll_layout)
-
         return frame
 
     def update_profile(self):
-        """Обновление профиля"""
-        user = self.main_window.current_user
+        user = self.main_window.current_user if self.main_window else None
         if not user:
             return
 
         self.user_name.setText(user.name)
         self.level_number.setText(str(user.level))
 
-        # Определение звания
         if user.level < 5:
             title = "Начинающий"
         elif user.level < 10:
@@ -397,50 +370,40 @@ class AchievementsPage(QWidget):
             title = "Мастер"
         self.user_title.setText(title)
 
-        # Прогресс XP
         xp_in_level = user.xp % 100
         self.xp_progress.setValue(xp_in_level)
         self.xp_text.setText(f"{xp_in_level} / 100 XP")
 
     def update_stats(self):
-        """Обновление статистики"""
-        user = self.main_window.current_user
+        user = self.main_window.current_user if self.main_window else None
         if not user:
             return
 
         self.stat_labels['streak_days'].setText(str(user.streak_days))
 
-        # Количество достижений
-        from database.operations import get_user_achievements
         achievements = get_user_achievements(user.id)
         self.stat_labels['achievements_count'].setText(str(len(achievements)))
 
-        # Количество записей
-        from database.operations import get_today_meals
         today_meals = get_today_meals(user.id)
         self.stat_labels['meals_count'].setText(str(len(today_meals)))
 
-        # Вода
         self.stat_labels['water_total'].setText(str(user.water_glasses))
 
     def update_achievements(self):
-        """Обновление списка достижений"""
-        user = self.main_window.current_user
+        # Очистка
+        while self.unlocked_layout_grid.count():
+            item = self.unlocked_layout_grid.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        while self.available_layout_grid.count():
+            item = self.available_layout_grid.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        user = self.main_window.current_user if self.main_window else None
         if not user:
             return
 
-        # Очищаем контейнеры
-        while self.unlocked_layout.count():
-            item = self.unlocked_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        while self.available_layout.count():
-            item = self.available_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        # Получаем достижения
         unlocked = get_user_achievements(user.id)
         available = get_available_achievements(user.id)
 
@@ -449,25 +412,21 @@ class AchievementsPage(QWidget):
 
         # Разблокированные
         unlocked_count = 0
-        for i, achievement in enumerate(all_achievements):
+        for achievement in all_achievements:
             if achievement.name in unlocked_names:
                 card = AchievementCard(achievement, unlocked=True)
-                self.unlocked_layout.addWidget(card, unlocked_count // 3, unlocked_count % 3)
+                self.unlocked_layout_grid.addWidget(card, unlocked_count // 3, unlocked_count % 3)
                 unlocked_count += 1
 
-        # Если нет разблокированных
         if unlocked_count == 0:
             empty_label = QLabel("Пока нет достижений...\nНачните пользоваться приложением!")
-            empty_label.setStyleSheet(f"""
-                font-size: 14px;
-                color: {COLORS['text_hint']};
-            """)
+            empty_label.setStyleSheet(f"font-size: 14px; color: {COLORS['text_hint']};")
             empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.unlocked_layout.addWidget(empty_label, 0, 0, 1, 3)
+            self.unlocked_layout_grid.addWidget(empty_label, 0, 0, 1, 3)
 
         # Доступные
         available_count = 0
-        for i, achievement in enumerate(available):
+        for achievement in available:
             card = AchievementCard(achievement, unlocked=False)
-            self.available_layout.addWidget(card, available_count // 3, available_count % 3)
+            self.available_layout_grid.addWidget(card, available_count // 3, available_count % 3)
             available_count += 1

@@ -1,13 +1,16 @@
+# ui/pages/calculator.py
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFormLayout, QLineEdit, QComboBox, QPushButton, QGroupBox
 from PyQt6.QtCore import Qt
-Qt.AlignmentFlag.AlignCenter
-Qt.AlignmentFlag.AlignLeft
-Qt.ScrollBarPolicy.ScrollBarAlwaysOff
 
 
 class CalculatorPage(QWidget):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, main_window=None, parent=None):
+        super().__init__(parent)
+        self.main_window = main_window
+        self.setup_ui()
+        self.load_user_data()  # Загружаем данные текущего пользователя
+
+    def setup_ui(self):
         layout = QVBoxLayout()
 
         title = QLabel("🧮 Калькулятор калорий")
@@ -42,6 +45,33 @@ class CalculatorPage(QWidget):
 
         layout.addStretch()
         self.setLayout(layout)
+
+    def load_user_data(self):
+        """Загрузка данных текущего пользователя для предзаполнения полей"""
+        if not self.main_window or not self.main_window.current_user:
+            return
+        user = self.main_window.current_user
+        # Устанавливаем пол
+        if user.gender == 'male':
+            self.gender.setCurrentText("Мужской")
+        else:
+            self.gender.setCurrentText("Женский")
+        # Возраст
+        self.age.setText(str(user.age))
+        # Вес
+        self.weight.setText(str(user.weight))
+        # Рост
+        self.height.setText(str(user.height))
+        # Уровень активности
+        activity_map = {
+            'sedentary': "Сидячий",
+            'light': "Легкий",
+            'moderate': "Средний",
+            'active': "Высокий",
+            'very_active': "Экстремальный"
+        }
+        activity_text = activity_map.get(user.activity_level, "Средний")
+        self.activity.setCurrentText(activity_text)
 
     def calculate(self):
         try:

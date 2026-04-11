@@ -1,3 +1,4 @@
+# core/recommender.py
 # Рекомендательная система на основе контента
 from typing import List, Dict, Optional
 from collections import Counter
@@ -46,9 +47,15 @@ class RecipeRecommender:
                 if recipe.name.lower() in meal.name.lower() or meal.name.lower() in recipe.name.lower():
                     category_counter[recipe.category] += 1
                     # Подсчёт ингредиентов
-                    if recipe.ingredients:
+                    if hasattr(recipe, 'ingredients') and recipe.ingredients:
                         for ing in recipe.ingredients:
-                            ingredient_counter[ing['product']] += 1
+                            # ing может быть словарём или объектом
+                            if isinstance(ing, dict):
+                                product_name = ing.get('product', '')
+                            else:
+                                product_name = getattr(ing, 'product', '')
+                            if product_name:
+                                ingredient_counter[product_name] += 1
 
         self.preferred_categories = [cat for cat, count in category_counter.most_common(3)]
         self.preferred_ingredients = [ing for ing, count in ingredient_counter.most_common(10)]
@@ -65,14 +72,14 @@ class RecipeRecommender:
             Список рекомендованных рецептов
         """
         # Получаем подходящие рецепты
-        if self.user and self.user.diet_type:
+        if self.user and getattr(self.user, 'diet_type', None):
             suitable_recipes = get_recipes_by_diet(self.user.diet_type)
         else:
             suitable_recipes = self.all_recipes
 
         # Фильтруем по категории
         if category:
-            suitable_recipes = [r for r in suitable_recipes if r.category == category]
+            suitable_recipes = [r for r in suitable_recipes if getattr(r, 'category', None) == category]
 
         if not suitable_recipes:
             return []
@@ -102,30 +109,34 @@ class RecipeRecommender:
         score = 5.0  # Базовый score
 
         # Бонус за предпочитаемые категории
-        if recipe.category in self.preferred_categories:
+        if hasattr(recipe, 'category') and recipe.category in self.preferred_categories:
             score += 2.0
 
         # Бонус за предпочитаемые ингредиенты
-        if recipe.ingredients:
+        if hasattr(recipe, 'ingredients') and recipe.ingredients:
             for ing in recipe.ingredients:
-                if ing['product'] in self.preferred_ingredients:
+                product_name = ing.get('product', '') if isinstance(ing, dict) else getattr(ing, 'product', '')
+                if product_name in self.preferred_ingredients:
                     score += 0.5
 
         # Рейтинг рецепта
-        score += (recipe.rating - 3.0)  # Нормализация рейтинга
+        rating = getattr(recipe, 'rating', 3.0)
+        score += (rating - 3.0)  # Нормализация рейтинга
 
         # Бонус за полезность
-        if recipe.is_vegetarian:
+        if getattr(recipe, 'is_vegetarian', False):
             score += 0.3
-        if recipe.is_gluten_free:
+        if getattr(recipe, 'is_gluten_free', False):
             score += 0.3
 
         # Штраф за неподходящие ингредиенты
-        if recipe.ingredients:
+        if hasattr(recipe, 'ingredients') and recipe.ingredients:
             for ing in recipe.ingredients:
-                product = get_product_by_name(ing['product'])
-                if product and not product.is_healthy:
-                    score -= 0.2
+                product_name = ing.get('product', '') if isinstance(ing, dict) else getattr(ing, 'product', '')
+                if product_name:
+                    product = get_product_by_name(product_name)
+                    if product and not getattr(product, 'is_healthy', True):
+                        score -= 0.2
 
         return score
 
@@ -142,7 +153,7 @@ class RecipeRecommender:
         """
         target_recipe = None
         for recipe in self.all_recipes:
-            if recipe.id == recipe_id:
+            if getattr(recipe, 'id', None) == recipe_id:
                 target_recipe = recipe
                 break
 
@@ -151,20 +162,24 @@ class RecipeRecommender:
 
         # Собираем ингредиенты целевого рецепта
         target_ingredients = set()
-        if target_recipe.ingredients:
+        if hasattr(target_recipe, 'ingredients') and target_recipe.ingredients:
             for ing in target_recipe.ingredients:
-                target_ingredients.add(ing['product'].lower())
+                product_name = ing.get('product', '') if isinstance(ing, dict) else getattr(ing, 'product', '')
+                if product_name:
+                    target_ingredients.add(product_name.lower())
 
         # Ищем рецепты с похожими ингредиентами
         scored_recipes = []
         for recipe in self.all_recipes:
-            if recipe.id == recipe_id:
+            if getattr(recipe, 'id', None) == recipe_id:
                 continue
 
             recipe_ingredients = set()
-            if recipe.ingredients:
+            if hasattr(recipe, 'ingredients') and recipe.ingredients:
                 for ing in recipe.ingredients:
-                    recipe_ingredients.add(ing['product'].lower())
+                    product_name = ing.get('product', '') if isinstance(ing, dict) else getattr(ing, 'product', '')
+                    if product_name:
+                        recipe_ingredients.add(product_name.lower())
 
             # Коэффициент Жаккара
             if target_ingredients or recipe_ingredients:
@@ -220,16 +235,16 @@ class RecipeRecommender:
             return {}
 
         # Целевые значения (упрощённо)
-        if today_totals['protein'] < 50:
+        if today_totals.get('protein', 0) < 50:
             protein_recommendations = self.get_recommendations(category='lunch', count=3)
             return {
-                'protein_sources': [r.name for r in protein_recommendations if r.protein > 20]
+                'protein_sources': [r.name for r in protein_recommendations if getattr(r, 'protein', 0) > 20]
             }
 
-        if today_totals['carbs'] > 200:
+        if today_totals.get('carbs', 0) > 200:
             return {
                 'low_carb_options': [r.name for r in
-                                     self.get_recommendations(count=3) if r.carbs < 30]
+                                     self.get_recommendations(count=3) if getattr(r, 'carbs', 0) < 30]
             }
 
         return {}
@@ -284,9 +299,9 @@ class SimpleRecommender:
 
     @staticmethod
     def get_quick_recommendations(
-        diet_type: str = None,
-        category: str = None,
-        count: int = 5
+            diet_type: str = None,
+            category: str = None,
+            count: int = 5
     ) -> List[Recipe]:
         """
         Быстрые рекомендации без учёта истории пользователя.
@@ -303,14 +318,14 @@ class SimpleRecommender:
 
         # Фильтр по диете
         if diet_type:
-            recipes = [r for r in recipes if diet_type in (r.suitable_diets or [])]
+            recipes = [r for r in recipes if diet_type in (getattr(r, 'suitable_diets', []) or [])]
 
         # Фильтр по категории
         if category:
-            recipes = [r for r in recipes if r.category == category]
+            recipes = [r for r in recipes if getattr(r, 'category', None) == category]
 
         # Сортируем по рейтингу
-        recipes.sort(key=lambda x: x.rating, reverse=True)
+        recipes.sort(key=lambda x: getattr(x, 'rating', 0), reverse=True)
 
         return recipes[:count]
 
@@ -326,7 +341,7 @@ class SimpleRecommender:
             Список популярных рецептов
         """
         recipes = get_all_recipes()
-        recipes.sort(key=lambda x: x.rating, reverse=True)
+        recipes.sort(key=lambda x: getattr(x, 'rating', 0), reverse=True)
         return recipes[:count]
 
     @staticmethod
@@ -345,11 +360,14 @@ class SimpleRecommender:
         # Фильтруем рецепты с высоким содержанием белка и низким жира
         healthy_recipes = []
         for r in recipes:
-            if r.protein > r.fat * 2 and r.calories < 500:
+            protein = getattr(r, 'protein', 0)
+            fat = getattr(r, 'fat', 0)
+            calories = getattr(r, 'calories', 1)
+            if protein > fat * 2 and calories < 500:
                 healthy_recipes.append(r)
 
         # Сортируем по соотношению белка к калориям
-        healthy_recipes.sort(key=lambda x: x.protein / max(x.calories, 1), reverse=True)
+        healthy_recipes.sort(key=lambda x: getattr(x, 'protein', 0) / max(getattr(x, 'calories', 1), 1), reverse=True)
 
         return healthy_recipes[:count]
 

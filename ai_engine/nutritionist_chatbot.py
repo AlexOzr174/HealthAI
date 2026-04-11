@@ -1,3 +1,4 @@
+# ai_engine/nutritionist_chatbot.py
 """
 AI Nutritionist Chatbot - Умный чат-бот нутрициолог
 Использует локальные модели и правила для персонализированных рекомендаций
@@ -9,17 +10,33 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import re
 
+# Коэффициенты активности (как в core/calculator.py)
+ACTIVITY_MULTIPLIERS = {
+    'sedentary': 1.2,  # Сидячий образ жизни
+    'light': 1.375,  # Лёгкая активность (1-3 тренировки в неделю)
+    'moderate': 1.55,  # Умеренная активность (3-5 тренировок)
+    'active': 1.725,  # Высокая активность (6-7 тренировок)
+    'very_active': 1.9,  # Очень высокая активность (тяжёлый труд/спорт)
+    # для совместимости с русскими названиями из UI
+    'сидячий': 1.2,
+    'легкий': 1.375,
+    'средний': 1.55,
+    'высокий': 1.725,
+    'экстремальный': 1.9,
+}
+
+
 class NutritionistChatbot:
     """
     Интеллектуальный чат-бот нутрициолог с поддержкой контекста
     Анализирует профиль пользователя, историю питания и даёт рекомендации
     """
-    
+
     def __init__(self):
         self.context = {}
         self.user_profile = None
         self.conversation_history = []
-        
+
         # Паттерны для распознавания намерений
         self.intents = {
             'greeting': ['привет', 'здравствуйте', 'добрый день', 'доброе утро', 'добрый вечер', 'хай', 'hello', 'hi'],
@@ -36,10 +53,10 @@ class NutritionistChatbot:
             'progress': ['прогресс', 'результаты', 'как дела', 'динамика', 'изменения'],
             'goodbye': ['пока', 'до свидания', 'спасибо', 'всего хорошего', 'завершить']
         }
-        
+
         # База знаний нутрициолога
         self.knowledge_base = self._load_knowledge_base()
-        
+
     def _load_knowledge_base(self) -> Dict:
         """Загрузка базы знаний о питании"""
         return {
@@ -87,7 +104,7 @@ class NutritionistChatbot:
                 'fiber_norm': '25-30г в день'
             }
         }
-    
+
     def set_user_profile(self, profile: Dict):
         """Установка профиля пользователя"""
         self.user_profile = profile
@@ -96,28 +113,29 @@ class NutritionistChatbot:
         self.context['height'] = profile.get('height', 170)
         self.context['age'] = profile.get('age', 30)
         self.context['gender'] = profile.get('gender', 'female')
+        # Сохраняем activity как есть (может быть строкой или числом)
         self.context['activity'] = profile.get('activity_level', 1.2)
-        
+
     def detect_intent(self, message: str) -> Tuple[str, float]:
         """Распознавание намерения пользователя"""
         message_lower = message.lower()
         best_intent = 'unknown'
         best_score = 0.0
-        
+
         for intent, keywords in self.intents.items():
             score = sum(1 for keyword in keywords if keyword in message_lower)
             if score > best_score:
                 best_score = score
                 best_intent = intent
-                
+
         # Нормализация уверенности
         confidence = min(best_score / 3.0, 1.0) if best_score > 0 else 0.0
         return best_intent, confidence
-    
+
     def extract_entities(self, message: str) -> Dict:
         """Извлечение сущностей из сообщения"""
         entities = {}
-        
+
         # Извлечение чисел (вес, калории, время)
         numbers = re.findall(r'\d+(?:\.\d+)?', message)
         if numbers:
@@ -129,32 +147,32 @@ class NutritionistChatbot:
                 entities['age'] = int(numbers[0])
             elif any(word in message.lower() for word in ['калорий', 'ккал', 'калории']):
                 entities['calories'] = int(numbers[0])
-                
+
         return entities
-    
+
     def generate_response(self, message: str, meal_history: Optional[List] = None) -> Dict:
         """Генерация ответа чат-бота"""
-        
+
         # Добавляем сообщение в историю
         self.conversation_history.append({
             'role': 'user',
             'message': message,
             'timestamp': datetime.now().isoformat()
         })
-        
+
         # Распознаём намерение
         intent, confidence = self.detect_intent(message)
         entities = self.extract_entities(message)
-        
+
         # Обновляем профиль если есть новые данные
         if entities:
             for key, value in entities.items():
-                if hasattr(self, 'context') and key in self.context:
+                if key in self.context:
                     self.context[key] = value
-        
+
         # Генерируем ответ в зависимости от намерения
         response_data = self._generate_intent_response(intent, confidence, message, meal_history)
-        
+
         # Добавляем ответ в историю
         self.conversation_history.append({
             'role': 'assistant',
@@ -163,13 +181,13 @@ class NutritionistChatbot:
             'intent': intent,
             'confidence': confidence
         })
-        
+
         return response_data
-    
-    def _generate_intent_response(self, intent: str, confidence: float, 
+
+    def _generate_intent_response(self, intent: str, confidence: float,
                                   message: str, meal_history: Optional[List]) -> Dict:
         """Генерация ответа на основе намерения"""
-        
+
         responses = {
             'greeting': self._handle_greeting(),
             'weight_loss': self._handle_weight_goal('weight_loss'),
@@ -186,9 +204,9 @@ class NutritionistChatbot:
             'goodbye': self._handle_goodbye(),
             'unknown': self._handle_unknown()
         }
-        
+
         return responses.get(intent, responses['unknown'])
-    
+
     def _handle_greeting(self) -> Dict:
         """Обработка приветствия"""
         hour = datetime.now().hour
@@ -198,17 +216,17 @@ class NutritionistChatbot:
             greeting = "Добрый день! 🌤️"
         else:
             greeting = "Добрый вечер! 🌙"
-            
+
         name = ""
         if self.user_profile and self.user_profile.get('name'):
-            name = f", {self.user_profile['name']}!"
-            
+            name = f", {self.user_profile['name']}"
+
         return {
-            'text': f"{greeting}{name} Я ваш персональный ИИ-нутрициолог. Готов помочь вам достичь ваших целей в питании! Чем могу быть полезен?",
+            'text': f"{greeting}{name}! Я ваш персональный ИИ-нутрициолог. Чем могу помочь?",
             'suggestions': ['Рассчитать норму калорий', 'Получить план питания', 'Советы по похудению'],
             'type': 'greeting'
         }
-    
+
     def _handle_weight_goal(self, goal: str) -> Dict:
         """Обработка целей по весу"""
         if not self.user_profile:
@@ -217,10 +235,10 @@ class NutritionistChatbot:
                 'suggestions': ['Ввести данные профиля', 'Рассчитать калории'],
                 'type': 'info_request'
             }
-        
+
         kb = self.knowledge_base[goal]
         weight = self.context.get('weight', 70)
-        
+
         # Расчёт рекомендаций
         if goal == 'weight_loss':
             target = f"снизить вес до {weight * 0.9:.1f} кг"
@@ -231,22 +249,22 @@ class NutritionistChatbot:
         else:
             target = "поддерживать текущий вес"
             timeframe = "постоянно"
-        
+
         tips = random.sample(kb['tips'], min(3, len(kb['tips'])))
-        
+
         response_text = f"Отличная цель! Для того чтобы {target}, я рекомендую:\n\n"
         for i, tip in enumerate(tips, 1):
             response_text += f"{i}. {tip}\n"
-        
+
         response_text += f"\n📊 Ориентировочный срок достижения цели: {timeframe}"
-        
+
         return {
             'text': response_text,
             'suggestions': ['Показать расчёт калорий', 'Составить меню на день', 'Узнать про белки'],
             'type': 'advice',
             'goal': goal
         }
-    
+
     def _handle_diet_advice(self, meal_history: Optional[List]) -> Dict:
         """Обработка запроса советов по питанию"""
         if not self.user_profile:
@@ -255,34 +273,34 @@ class NutritionistChatbot:
                 'suggestions': ['Заполнить профиль', 'Общие советы'],
                 'type': 'info_request'
             }
-        
+
         advice_parts = []
-        
+
         # Анализ текущего рациона если есть история
         if meal_history and len(meal_history) > 0:
             advice_parts.append("📈 На основе вашего рациона:")
-            
+
             # Простой анализ
             total_calories = sum(meal.get('calories', 0) for meal in meal_history[-7:])
             avg_calories = total_calories / max(len(meal_history), 1)
-            
+
             if avg_calories > 0:
                 advice_parts.append(f"• Средняя калорийность: {avg_calories:.0f} ккал")
-        
+
         # Общие рекомендации
         goal = self.context.get('goal', 'maintain')
         kb = self.knowledge_base.get(goal, self.knowledge_base['maintain'])
-        
+
         advice_parts.append("\n💡 Мои рекомендации:")
         tips = random.sample(kb['tips'], min(4, len(kb['tips'])))
         advice_parts.extend([f"• {tip}" for tip in tips])
-        
+
         return {
             'text': '\n'.join(advice_parts),
             'suggestions': ['План питания на неделю', 'Рецепты для моей цели', 'Норма воды'],
             'type': 'advice'
         }
-    
+
     def _handle_calorie_question(self) -> Dict:
         """Ответ на вопрос о калориях"""
         if not self.user_profile:
@@ -293,16 +311,26 @@ class NutritionistChatbot:
             height = self.context.get('height', 170)
             age = self.context.get('age', 30)
             gender = self.context.get('gender', 'female')
-            activity = self.context.get('activity', 1.2)
-            
+            activity_raw = self.context.get('activity', 1.2)
+
+            # Преобразование уровня активности в число
+            if isinstance(activity_raw, (int, float)):
+                activity_multiplier = float(activity_raw)
+            else:
+                # Если это строка, ищем в словаре
+                activity_multiplier = ACTIVITY_MULTIPLIERS.get(
+                    str(activity_raw).lower(),
+                    1.2  # значение по умолчанию
+                )
+
             if gender == 'male':
                 bmr = 10 * weight + 6.25 * height - 5 * age + 5
             else:
                 bmr = 10 * weight + 6.25 * height - 5 * age - 161
-            
-            tdee = bmr * activity
+
+            tdee = bmr * activity_multiplier
             base_calories = tdee
-        
+
         goal = self.context.get('goal', 'maintain')
         if goal == 'weight_loss':
             recommended = base_calories * 0.85
@@ -313,24 +341,24 @@ class NutritionistChatbot:
         else:
             recommended = base_calories
             text = f"Для поддержания веса ваша норма: {recommended:.0f} ккал/день"
-        
+
         return {
             'text': text,
             'suggestions': ['Рассчитать БЖУ', 'Примеры продуктов на эту калорийность', 'План питания'],
             'type': 'calculation',
             'calories': recommended
         }
-    
+
     def _handle_protein_question(self) -> Dict:
         """Ответ на вопрос о белке"""
         weight = self.context.get('weight', 70)
         goal = self.context.get('goal', 'maintain')
-        
+
         kb = self.knowledge_base.get(goal, self.knowledge_base['maintain'])
         multiplier = kb.get('protein_multiplier', 1.4)
-        
+
         protein_norm = weight * multiplier
-        
+
         response = f"🥩 Ваша норма белка: {protein_norm:.1f}г в день ({multiplier}г на кг веса)\n\n"
         response += "Источники белка:\n"
         response += "• Куриная грудка: 23г белка на 100г\n"
@@ -338,31 +366,31 @@ class NutritionistChatbot:
         response += "• Рыба: 20г белка на 100г\n"
         response += "• Яйца: 13г белка на 2 яйца\n"
         response += "• Чечевица: 9г белка на 100г"
-        
+
         return {
             'text': response,
             'suggestions': ['Норма жиров и углеводов', 'Рецепты богатые белком', 'Когда лучше есть белок'],
             'type': 'info'
         }
-    
+
     def _handle_water_question(self) -> Dict:
         """Ответ на вопрос о воде"""
         weight = self.context.get('weight', 70)
         water_norm = weight * 0.03  # 30мл на кг
-        
-        response = f"💧 Ваша норма воды: {water_norm:.2f}л в день ({water_norm*1000:.0f}мл)\n\n"
+
+        response = f"💧 Ваша норма воды: {water_norm:.2f}л в день ({water_norm * 1000:.0f}мл)\n\n"
         response += "Советы по гидратации:\n"
         response += "• Пейте стакан воды утром натощак\n"
         response += "• Выпивайте стакан за 20 мин до еды\n"
         response += "• Держите бутылку воды на рабочем столе\n"
         response += "• Контролируйте цвет мочи (должна быть светлой)"
-        
+
         return {
             'text': response,
             'suggestions': ['Напоминания о воде', 'Как пить больше воды', 'Влияние воды на метаболизм'],
             'type': 'info'
         }
-    
+
     def _handle_meal_plan(self) -> Dict:
         """Генерация плана питания"""
         plans = {
@@ -391,20 +419,20 @@ class NutritionistChatbot:
                 "Морковные палочки с хумусом"
             ]
         }
-        
+
         response = "🍽️ Пример плана питания на день:\n\n"
         response += f"🌅 Завтрак: {random.choice(plans['breakfast'])}\n"
         response += f"☀️ Обед: {random.choice(plans['lunch'])}\n"
         response += f"🌇 Ужин: {random.choice(plans['dinner'])}\n"
         response += f"🍪 Перекус: {random.choice(plans['snack'])}\n\n"
         response += "Хотите подробный рецепт любого блюда или план на неделю?"
-        
+
         return {
             'text': response,
             'suggestions': ['Рецепт завтрака', 'План на неделю', 'Альтернативные варианты'],
             'type': 'meal_plan'
         }
-    
+
     def _handle_problem(self, message: str) -> Dict:
         """Обработка проблем пользователя"""
         problems = {
@@ -413,25 +441,25 @@ class NutritionistChatbot:
             'усталость': "Усталость часто связана с недостатком калорий или железа. Проверьте свой рацион.",
             'плато': "Плато в весе — естественный этап. Попробуйте изменить тип тренировок или пересчитать калории."
         }
-        
+
         # Поиск ключевых слов проблемы
         found_problem = None
         for key in problems.keys():
             if key in message.lower():
                 found_problem = key
                 break
-        
+
         if found_problem:
             advice = problems[found_problem]
         else:
             advice = "Расскажите подробнее о вашей проблеме, чтобы я мог дать точный совет."
-        
+
         return {
             'text': f"Понимаю вашу ситуацию. {advice}\n\nХотите, составим план действий?",
             'suggestions': ['План действий', 'Изменить рацион', 'Поговорить подробнее'],
             'type': 'support'
         }
-    
+
     def _handle_motivation(self) -> Dict:
         """Мотивационная поддержка"""
         motivations = [
@@ -441,13 +469,14 @@ class NutritionistChatbot:
             "Не сравнивайте себя с другими. Сравнивайте себя с собой вчерашним!",
             "Один пропущенный приём пищи не испортит прогресс, как и один полезный не сделает вас здоровым. Важна система!"
         ]
-        
+
         return {
-            'text': random.choice(motivations) + "\n\nРасскажите, что именно вызывает трудности? Вместе найдём решение!",
+            'text': random.choice(
+                motivations) + "\n\nРасскажите, что именно вызывает трудности? Вместе найдём решение!",
             'suggestions': ['Рассказать о проблеме', 'Получить совет', 'Скорректировать план'],
             'type': 'motivation'
         }
-    
+
     def _handle_progress(self) -> Dict:
         """Анализ прогресса"""
         if len(self.conversation_history) < 3:
@@ -456,13 +485,13 @@ class NutritionistChatbot:
                 'suggestions': ['Записать текущий вес', 'Поставить цель', 'Начать дневник питания'],
                 'type': 'info'
             }
-        
+
         return {
             'text': "Отслеживание прогресса — ключ к успеху! 📊\n\nРекомендую:\n• Взвешиваться 1-2 раза в неделю утром натощак\n• Делать замеры талии, бёдер, груди\n• Фотографироваться раз в 2 недели\n• Отслеживать энергию и качество сна",
             'suggestions': ['Записать замеры', 'Посмотреть статистику', 'Поставить новую цель'],
             'type': 'tracking'
         }
-    
+
     def _handle_goodbye(self) -> Dict:
         """Прощание"""
         farewells = [
@@ -470,13 +499,13 @@ class NutritionistChatbot:
             "Удачи на пути к целям! Я всегда на связи. До встречи! 👋",
             "Помните: вы делаете отличную работу! Заходите за новыми советами. Всего доброго! ✨"
         ]
-        
+
         return {
             'text': random.choice(farewells),
             'suggestions': [],
             'type': 'farewell'
         }
-    
+
     def _handle_unknown(self) -> Dict:
         """Обработка неизвестных запросов"""
         return {
@@ -484,7 +513,7 @@ class NutritionistChatbot:
             'suggestions': ['Рассчитать калории', 'План питания', 'Советы по похудению', 'Норма белка'],
             'type': 'clarification'
         }
-    
+
     def get_conversation_summary(self) -> Dict:
         """Получение сводки по разговору"""
         intents_count = {}
@@ -492,7 +521,7 @@ class NutritionistChatbot:
             if msg['role'] == 'user':
                 intent = msg.get('intent', 'unknown')
                 intents_count[intent] = intents_count.get(intent, 0) + 1
-        
+
         return {
             'total_messages': len(self.conversation_history),
             'user_messages': sum(1 for m in self.conversation_history if m['role'] == 'user'),

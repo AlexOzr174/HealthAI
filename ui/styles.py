@@ -274,3 +274,7 @@ def toggle_theme():
     global CURRENT_THEME
     CURRENT_THEME = "dark" if CURRENT_THEME == "light" else "light"
     return CURRENT_THEME
+
+
+def get_stylesheet():
+    return Styles.get_stylesheet()

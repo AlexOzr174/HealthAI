@@ -1,13 +1,39 @@
+# ui/pages/onboarding.py
 # Страница первичной настройки (онбординг)
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                              QLineEdit, QComboBox, QPushButton, QFrame,
-                              QButtonGroup, QRadioButton,
-                              QScrollArea, QSpacerItem, QSizePolicy)
+                             QLineEdit, QComboBox, QPushButton, QFrame,
+                             QButtonGroup, QRadioButton,
+                             QScrollArea, QSpacerItem, QSizePolicy)
 from PyQt6.QtCore import Qt, pyqtSignal
 
-from config.settings import COLORS, ACTIVITY_LEVELS, GOALS
+# Импорт конфигурации с fallback
+try:
+    from config.settings import COLORS, ACTIVITY_LEVELS, GOALS
+except ImportError:
+    COLORS = {
+        'primary': '#3498DB', 'primary_light': '#5DADE2', 'primary_dark': '#2980B9',
+        'primary_hover': '#2980B9', 'surface': '#FFFFFF', 'background': '#F0F2F5',
+        'text_primary': '#2C3E50', 'text_secondary': '#7F8C8D', 'text_hint': '#95A5A6',
+        'error': '#E74C3C', 'error_light': '#FADBD8', 'warning': '#F39C12',
+        'warning_light': '#FDEBD0', 'secondary': '#27AE60', 'secondary_light': '#D5F5E3',
+        'border': '#E0E0E0', 'success': '#27AE60', 'success_hover': '#229954'
+    }
+    ACTIVITY_LEVELS = {
+        'sedentary': {'name': 'Сидячий', 'factor': 1.2},
+        'light': {'name': 'Легкий', 'factor': 1.375},
+        'moderate': {'name': 'Средний', 'factor': 1.55},
+        'active': {'name': 'Высокий', 'factor': 1.725},
+        'very_active': {'name': 'Экстремальный', 'factor': 1.9}
+    }
+    GOALS = {
+        'lose': {'name': 'Похудение', 'modifier': -0.15},
+        'maintain': {'name': 'Поддержание', 'modifier': 0},
+        'gain': {'name': 'Набор массы', 'modifier': 0.15},
+        'healthy': {'name': 'Здоровое питание', 'modifier': 0}
+    }
+
 from core.calculator import calculate_bmr, calculate_tdee, calculate_target_calories
-from database.operations import save_user, unlock_achievement
+from database.operations import save_user, unlock_achievement, get_user
 from database.init_db import populate_initial_data
 
 
@@ -16,9 +42,9 @@ class OnboardingPage(QWidget):
 
     completed = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
-        self.main_window = parent
+        self.main_window = main_window
         self.setup_ui()
 
     def setup_ui(self):
@@ -105,7 +131,7 @@ class OnboardingPage(QWidget):
 
         self.goal_combo = QComboBox()
         for goal_id, goal_data in GOALS.items():
-            self.goal_combo.addItem(f"{goal_data['name']} - {goal_data['description']}", goal_id)
+            self.goal_combo.addItem(f"{goal_data['name']} - {goal_data.get('description', '')}", goal_id)
         step3_layout.addWidget(self.goal_combo)
 
         scroll_layout.addWidget(step3)
@@ -137,7 +163,6 @@ class OnboardingPage(QWidget):
 
         scroll_layout.addWidget(step4)
 
-        # Устанавливаем контент в скролл
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll, stretch=1)
 
@@ -208,7 +233,6 @@ class OnboardingPage(QWidget):
         title_label.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {COLORS['primary_dark']};")
         layout.addWidget(title_label)
 
-        # Добавляем spacer между заголовком и контентом
         spacer = QSpacerItem(0, 8, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         layout.addSpacerItem(spacer)
 
@@ -396,10 +420,12 @@ class OnboardingPage(QWidget):
         populate_initial_data()
         save_user(user_data)
 
-        from database.operations import get_user
-        user = get_user()
+        # Получаем созданного пользователя (предполагаем, что id=1 или последний)
+        user = get_user(1)  # Или использовать get_user() без аргумента, если функция поддерживает
         if user:
             unlock_achievement(user.id, 'first_entry')
 
-        self.main_window.check_user()
+        # Обновляем главное окно
+        if self.main_window and hasattr(self.main_window, 'check_user'):
+            self.main_window.check_user()
         self.completed.emit()

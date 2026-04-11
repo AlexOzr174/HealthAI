@@ -1,3 +1,4 @@
+# core/food_recognition.py
 """
 Food Image Recognition - Распознавание еды по фото
 Использует предобученную модель для классификации продуктов
@@ -16,17 +17,17 @@ class FoodImageRecognizer:
     Примечание: В полной версии используется TensorFlow/Keras с предобученной моделью.
     Эта реализация включает демонстрационный режим с mock-данными.
     """
-    
+
     def __init__(self, model_path: Optional[str] = None):
         self.model_path = model_path
         self.model = None
         self.class_labels = self._load_class_labels()
         self.nutrition_database = self._load_nutrition_database()
-        
+
         # Попытка загрузить модель
         if model_path and Path(model_path).exists():
             self._load_model(model_path)
-    
+
     def _load_class_labels(self) -> List[str]:
         """Загрузка меток классов продуктов"""
         # Основные классы для распознавания
@@ -41,7 +42,7 @@ class FoodImageRecognizer:
             'burger', 'fries', 'salad_caesar', 'salad_greek', 'soup',
             'ice_cream', 'cake', 'cookie', 'chocolate', 'donut'
         ]
-    
+
     def _load_nutrition_database(self) -> Dict[str, Dict]:
         """Загрузка базы нутриентов для распознанных продуктов"""
         return {
@@ -72,18 +73,25 @@ class FoodImageRecognizer:
             'ice_cream': {'calories': 207, 'protein': 3.5, 'carbs': 24, 'fat': 11, 'fiber': 1, 'serving_size': 100},
             'cake': {'calories': 371, 'protein': 5, 'carbs': 53, 'fat': 16, 'fiber': 1.5, 'serving_size': 100}
         }
-    
+
     def _load_model(self, model_path: str):
         """Загрузка предобученной модели"""
         try:
-            # В полной версии:
-            # import tensorflow as tf
-            # self.model = tf.keras.models.load_model(model_path)
-            print(f"Модель загружена из {model_path}")
+            # Проверяем наличие TensorFlow
+            import importlib.util
+            tf_spec = importlib.util.find_spec("tensorflow")
+            if tf_spec is None:
+                print("TensorFlow не установлен. Будет использоваться демо-режим.")
+                self.model = None
+                return
+
+            import tensorflow as tf
+            self.model = tf.keras.models.load_model(model_path)
+            print(f"Модель успешно загружена из {model_path}")
         except Exception as e:
             print(f"Ошибка загрузки модели: {e}")
             self.model = None
-    
+
     def recognize_food(self, image_path: str, top_k: int = 3) -> List[Dict]:
         """
         Распознавание еды на изображении
@@ -97,62 +105,69 @@ class FoodImageRecognizer:
         """
         if not Path(image_path).exists():
             return [{'error': 'Файл не найден', 'path': image_path}]
-        
+
         # Если модель не загружена, используем демонстрационный режим
         if self.model is None:
             return self._mock_recognize(image_path, top_k)
-        
+
         # Полная версия с TensorFlow
         return self._tensorflow_recognize(image_path, top_k)
-    
+
     def _tensorflow_recognize(self, image_path: str, top_k: int) -> List[Dict]:
         """Распознавание с использованием TensorFlow"""
         try:
+            import importlib.util
+            tf_spec = importlib.util.find_spec("tensorflow")
+            pil_spec = importlib.util.find_spec("PIL")
+            if tf_spec is None or pil_spec is None:
+                print("TensorFlow или PIL не установлены. Переключение на демо-режим.")
+                return self._mock_recognize(image_path, top_k)
+
             import tensorflow as tf
             from PIL import Image
             import numpy as np
-            
+
             # Загрузка и предобработка изображения
             img = Image.open(image_path)
             img = img.resize((224, 224))  # Размер для MobileNet
             img_array = tf.keras.preprocessing.image.img_to_array(img)
             img_array = tf.expand_dims(img_array, 0)  # Добавляем batch dimension
             img_array = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
-            
+
             # Предсказание
             predictions = self.model.predict(img_array, verbose=0)
             probabilities = tf.nn.softmax(predictions[0])
-            
+
             # Получение топ-K предсказаний
             top_indices = tf.math.top_k(probabilities, k=top_k).indices.numpy()
             top_probs = tf.math.top_k(probabilities, k=top_k).values.numpy()
-            
+
             results = []
             for idx, prob in zip(top_indices, top_probs):
                 class_name = self.class_labels[idx] if idx < len(self.class_labels) else 'unknown'
                 nutrition = self.nutrition_database.get(class_name, {})
-                
+
                 results.append({
                     'food_class': class_name,
                     'confidence': float(prob),
                     'nutrition_per_100g': nutrition,
                     'estimated_serving': self._estimate_serving_size(class_name)
                 })
-            
+
             return results
-            
+
         except Exception as e:
             print(f"Ошибка распознавания: {e}")
             return self._mock_recognize(image_path, top_k)
-    
+
     def _mock_recognize(self, image_path: str, top_k: int) -> List[Dict]:
         """Демонстрационное распознавание (mock-данные)"""
         # Имитация распознавания на основе имени файла
         filename = Path(image_path).stem.lower()
-        
+
         # Простая эвристика для демонстрации
         mock_results = []
-        
+
         if 'apple' in filename or 'яблоко' in filename:
             mock_results.append(('apple', 0.92))
         elif 'banana' in filename or 'банан' in filename:
@@ -179,7 +194,7 @@ class FoodImageRecognizer:
                 ('rice_white', 0.58),
                 ('broccoli', 0.52)
             ]
-        
+
         # Формирование результатов
         results = []
         for food_class, confidence in mock_results[:top_k]:
@@ -191,9 +206,9 @@ class FoodImageRecognizer:
                 'estimated_serving': self._estimate_serving_size(food_class),
                 'total_nutrition': self._calculate_total_nutrition(nutrition, food_class)
             })
-        
+
         return results
-    
+
     def _estimate_serving_size(self, food_class: str) -> Dict:
         """Оценка размера порции на основе класса продукта"""
         serving_estimates = {
@@ -208,15 +223,15 @@ class FoodImageRecognizer:
             'salad_caesar': {'grams': 240, 'description': '1 порция салата'},
             'oatmeal': {'grams': 234, 'description': '1 чашка приготовленной овсянки'}
         }
-        
+
         return serving_estimates.get(food_class, {'grams': 100, 'description': 'Стандартная порция'})
-    
+
     def _calculate_total_nutrition(self, nutrition: Dict, food_class: str) -> Dict:
         """Расчёт общих нутриентов для оценённой порции"""
         serving = self._estimate_serving_size(food_class)
         grams = serving.get('grams', 100)
         multiplier = grams / 100
-        
+
         return {
             'calories': round(nutrition.get('calories', 0) * multiplier),
             'protein': round(nutrition.get('protein', 0) * multiplier, 1),
@@ -225,7 +240,7 @@ class FoodImageRecognizer:
             'fiber': round(nutrition.get('fiber', 0) * multiplier, 1),
             'serving_grams': grams
         }
-    
+
     def analyze_multiple_foods(self, image_path: str) -> Dict:
         """
         Анализ изображения с несколькими продуктами
@@ -237,10 +252,10 @@ class FoodImageRecognizer:
             Полный анализ блюда
         """
         recognized_foods = self.recognize_food(image_path, top_k=5)
-        
+
         if not recognized_foods or 'error' in recognized_foods[0]:
             return {'error': 'Не удалось распознать продукты'}
-        
+
         # Агрегация нутриентов
         total_nutrition = {
             'calories': 0,
@@ -249,7 +264,7 @@ class FoodImageRecognizer:
             'fat': 0,
             'fiber': 0
         }
-        
+
         foods_summary = []
         for food in recognized_foods:
             if 'total_nutrition' in food:
@@ -259,13 +274,13 @@ class FoodImageRecognizer:
                 total_nutrition['carbs'] += tn.get('carbs', 0)
                 total_nutrition['fat'] += tn.get('fat', 0)
                 total_nutrition['fiber'] += tn.get('fiber', 0)
-            
+
             foods_summary.append({
                 'name': food.get('food_class', 'unknown'),
                 'confidence': food.get('confidence', 0),
                 'serving': food.get('estimated_serving', {}).get('description', '')
             })
-        
+
         return {
             'recognized_foods': foods_summary,
             'total_nutrition': total_nutrition,
@@ -273,7 +288,7 @@ class FoodImageRecognizer:
             'analyzed_at': datetime.now().isoformat(),
             'health_score': self._calculate_health_score(total_nutrition)
         }
-    
+
     def _calculate_health_score(self, nutrition: Dict) -> int:
         """Расчёт показателя полезности блюда (0-100)"""
         calories = nutrition.get('calories', 0)
@@ -281,33 +296,33 @@ class FoodImageRecognizer:
         fat = nutrition.get('fat', 0)
         carbs = nutrition.get('carbs', 0)
         fiber = nutrition.get('fiber', 0)
-        
+
         score = 50  # Базовый score
-        
+
         # Белок увеличивает score
         score += min(protein * 2, 20)
-        
+
         # Клетчатка увеличивает score
         score += min(fiber * 3, 15)
-        
+
         # Избыток калорий уменьшает score
         if calories > 600:
             score -= 10
         elif calories > 400:
             score -= 5
-        
+
         # Избыток жиров уменьшает score
         if fat > 30:
             score -= 10
         elif fat > 20:
             score -= 5
-        
+
         return max(0, min(100, score))
-    
+
     def get_supported_foods(self) -> List[str]:
         """Получение списка поддерживаемых продуктов"""
         return list(self.nutrition_database.keys())
-    
+
     def save_model_info(self, output_path: str):
         """Сохранение информации о модели и поддерживаемых продуктах"""
         info = {
@@ -317,8 +332,8 @@ class FoodImageRecognizer:
             'model_loaded': self.model is not None,
             'version': '1.0'
         }
-        
+
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(info, f, ensure_ascii=False, indent=2)
-        
+
         return output_path

@@ -14,18 +14,16 @@ import sys
 import os
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QIcon
-Qt.AlignmentFlag.AlignCenter
-Qt.AlignmentFlag.AlignLeft
-Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+from PyQt6.QtGui import QFont
 
 # Добавление родительской директории в путь
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config.settings import APP_NAME, APP_VERSION, BASE_DIR
 from database.init_db import init_database, populate_initial_data
-# get_user удален, так как онбординг пока отключен для стабильности
+from database.operations import get_user
 from ui.main_window import MainWindow
+from ui.pages.onboarding import OnboardingPage
 
 
 def check_first_launch():
@@ -78,7 +76,6 @@ def main():
 
     # Настройка шрифтов для лучшей читаемости
     font = QFont()
-    # Используем доступные системные шрифты
     font.setFamily('Arial')
     font.setPointSize(10)
     app.setFont(font)
@@ -86,7 +83,7 @@ def main():
     # Инициализация базы данных
     is_first_launch = setup_application()
 
-    # Создание и показ главного окна
+    # Создание главного окна
     try:
         window = MainWindow()
     except Exception as e:
@@ -95,25 +92,35 @@ def main():
         traceback.print_exc()
         sys.exit(1)
 
-    # --- ВРЕМЕННО ОТКЛЮЧЕНО: Онбординг ---
-    # Логика онбординга требует наличия страницы OnboardingPage в main_window.py
-    # и правильной передачи класса, а не строки.
-    # Чтобы избежать краша при запуске, этот блок закомментирован.
-    # Если онбординг нужен, раскомментируйте после добавления страницы в навигацию.
+    # Проверка, есть ли пользователь в базе
+    user = get_user(1)  # предполагаем, что первый пользователь имеет id=1
 
-    # if is_first_launch:
-    #     from database.operations import get_user
-    #     user = get_user()
-    #     if not user:
-    #         # Требуется импорт OnboardingPage и добавление его в self.pages в main_window.py
-    #         # window.navigate_to(OnboardingPage)
-    #         print("ℹ️ Первый запуск: рекомендуется пройти настройку профиля вручную.")
-
-    window.show()
+    if is_first_launch or not user:
+        # Запускаем онбординг
+        print("🆕 Запуск онбординга для нового пользователя...")
+        onboarding = OnboardingPage(main_window=window)
+        onboarding.completed.connect(lambda: finish_onboarding(window))
+        onboarding.show()
+        # Главное окно пока не показываем
+    else:
+        # Пользователь уже существует, показываем главное окно
+        window.show()
 
     # Запуск приложения
     print(f"{APP_NAME} запущено. Приятного использования!")
     sys.exit(app.exec())
+
+
+def finish_onboarding(window: MainWindow):
+    """Действия после завершения онбординга"""
+    # Обновляем информацию о текущем пользователе в главном окне
+    user = get_user(1)  # после сохранения онбордингом пользователь будет с id=1
+    if user:
+        window.current_user = user
+        # Обновляем все страницы
+        window.check_user()
+    # Показываем главное окно
+    window.show()
 
 
 if __name__ == "__main__":

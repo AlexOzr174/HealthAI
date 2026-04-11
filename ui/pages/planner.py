@@ -16,11 +16,9 @@ from core.recommender import SimpleRecommender
 
 
 class PlannerPage(QWidget):
-    """Страница планировщика питания на неделю"""
-
-    def __init__(self, parent=None):
+    def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
-        self.main_window = parent
+        self.main_window = main_window
         self.current_week_start = self.get_week_start(date.today())
         # Инициализация словарей для хранения компонентов
         self.day_meals = {}

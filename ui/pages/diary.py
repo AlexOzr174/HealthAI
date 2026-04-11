@@ -1,15 +1,40 @@
+# ui/pages/diary.py
 # Страница дневника питания
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                              QFrame, QPushButton, QLineEdit, QComboBox,
-                              QListWidget, QListWidgetItem, QGridLayout,
-                              QDoubleSpinBox, QSpacerItem, QSizePolicy,
-                              QDialog, QDialogButtonBox, QScrollArea)
+                             QFrame, QPushButton, QLineEdit, QComboBox,
+                             QListWidget, QListWidgetItem, QGridLayout,
+                             QDoubleSpinBox, QSpacerItem, QSizePolicy,
+                             QDialog, QDialogButtonBox, QScrollArea)
 from PyQt6.QtCore import Qt, pyqtSignal
 from datetime import datetime, date
 
-from config.settings import COLORS
+# Импорт конфигурации с fallback
+try:
+    from config.settings import COLORS
+except ImportError:
+    COLORS = {
+        'primary': '#3498DB',
+        'primary_light': '#5DADE2',
+        'primary_dark': '#2980B9',
+        'primary_hover': '#2980B9',
+        'surface': '#FFFFFF',
+        'background': '#F0F2F5',
+        'text_primary': '#2C3E50',
+        'text_secondary': '#7F8C8D',
+        'text_hint': '#95A5A6',
+        'error': '#E74C3C',
+        'error_light': '#FADBD8',
+        'warning': '#F39C12',
+        'warning_light': '#FDEBD0',
+        'secondary': '#27AE60',
+        'secondary_light': '#D5F5E3',
+        'border': '#E0E0E0',
+        'success': '#27AE60',
+        'success_hover': '#229954'
+    }
+
 from database.operations import (get_today_meals, add_meal, delete_meal,
-                                  search_products, get_user)
+                                 search_products, get_user, unlock_achievement)
 from database.models import Meal
 
 
@@ -76,6 +101,7 @@ class AddMealDialog(QDialog):
         self.amount_spin.setRange(1, 5000)
         self.amount_spin.setValue(100)
         self.amount_spin.setSuffix(" г")
+        self.amount_spin.valueChanged.connect(self.update_calorie_info)
         amount_layout.addWidget(self.amount_spin)
         layout.addLayout(amount_layout)
 
@@ -159,9 +185,9 @@ class AddMealDialog(QDialog):
 class DiaryPage(QWidget):
     """Страница дневника питания"""
 
-    def __init__(self, parent=None):
+    def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
-        self.main_window = parent
+        self.main_window = main_window  # Сохраняем ссылку на главное окно
         self.current_date = date.today()
         self.setup_ui()
 
@@ -396,8 +422,11 @@ class DiaryPage(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-        user = self.main_window.current_user
+        user = self.main_window.current_user if self.main_window else None
         if not user:
+            # Показываем сообщение, что нет пользователя
+            no_user_label = QLabel("Пользователь не найден. Пройдите настройку профиля.")
+            self.meals_layout.addWidget(no_user_label)
             return
 
         meals = get_today_meals(user.id, self.current_date)
@@ -507,8 +536,13 @@ class DiaryPage(QWidget):
 
     def update_stats(self):
         """Обновление статистики"""
-        user = self.main_window.current_user
+        user = self.main_window.current_user if self.main_window else None
         if not user:
+            self.day_calories.setText("0")
+            self.day_calories_target.setText("/ 0 ккал")
+            self.day_protein_label.setText("0г")
+            self.day_fat_label.setText("0г")
+            self.day_carbs_label.setText("0г")
             return
 
         meals = get_today_meals(user.id, self.current_date)
@@ -529,8 +563,9 @@ class DiaryPage(QWidget):
 
     def add_meal(self):
         """Добавление приёма пищи"""
-        user = self.main_window.current_user
+        user = self.main_window.current_user if self.main_window else None
         if not user:
+            # Можно показать сообщение
             return
 
         dialog = AddMealDialog(self)
@@ -540,17 +575,19 @@ class DiaryPage(QWidget):
                 add_meal(user.id, meal_data)
 
                 # Разблокируем достижение за первый приём пищи
-                from database.operations import unlock_achievement
                 unlock_achievement(user.id, 'first_entry')
 
                 self.refresh()
-                self.main_window.update_calorie_display()
+                # Обновляем главное окно, если нужно
+                if self.main_window and hasattr(self.main_window, 'update_calorie_display'):
+                    self.main_window.update_calorie_display()
 
     def delete_meal(self, meal: Meal):
         """Удаление приёма пищи"""
         delete_meal(meal.id)
         self.refresh()
-        self.main_window.update_calorie_display()
+        if self.main_window and hasattr(self.main_window, 'update_calorie_display'):
+            self.main_window.update_calorie_display()
 
     def prev_day(self):
         """Переход к предыдущему дню"""

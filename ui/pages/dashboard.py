@@ -1,22 +1,45 @@
+# ui/pages/dashboard.py
 # Страница главного дашборда
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                              QFrame, QGridLayout, QPushButton, QProgressBar,
-                              QSpacerItem, QSizePolicy, QListWidget, QListWidgetItem)
+                             QFrame, QGridLayout, QPushButton, QProgressBar,
+                             QSpacerItem, QSizePolicy, QListWidget, QListWidgetItem)
 from PyQt6.QtCore import Qt
 from datetime import datetime, date
 
-from config.settings import COLORS
-from database.operations import (get_user, get_today_meals, get_user_stats,
-                                  get_recipes_by_diet, get_user_achievements)
-from core.calculator import get_calorie_category
+# Импорт конфигурации (если COLORS нет, создадим fallback)
+try:
+    from config.settings import COLORS
+except ImportError:
+    COLORS = {
+        'primary': '#3498DB',
+        'primary_light': '#5DADE2',
+        'primary_dark': '#2980B9',
+        'primary_hover': '#2980B9',
+        'surface': '#FFFFFF',
+        'background': '#F0F2F5',
+        'text_primary': '#2C3E50',
+        'text_secondary': '#7F8C8D',
+        'text_hint': '#95A5A6',
+        'error': '#E74C3C',
+        'error_light': '#FADBD8',
+        'warning': '#F39C12',
+        'warning_light': '#FDEBD0',
+        'secondary': '#27AE60',
+        'secondary_light': '#D5F5E3',
+        'border': '#E0E0E0',
+        'success': '#27AE60',
+        'success_hover': '#229954'
+    }
+
+from database.operations import get_today_meals, get_user_stats, get_recipes_by_diet
 
 
 class DashboardPage(QWidget):
     """Страница главного дашборда"""
 
-    def __init__(self, parent=None):
+    def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
-        self.main_window = parent
+        self.main_window = main_window  # Сохраняем ссылку на главное окно
         self.setup_ui()
 
     def setup_ui(self):
@@ -65,8 +88,19 @@ class DashboardPage(QWidget):
 
     def refresh(self):
         """Обновление данных страницы"""
-        user = self.main_window.current_user
+        # Получаем пользователя из главного окна
+        user = self.main_window.current_user if self.main_window else None
         if not user:
+            # Если нет пользователя, показываем заглушку
+            self.greeting_label.setText("Добро пожаловать в HealthAI!")
+            self.calories_consumed.setText("0")
+            self.calories_target.setText("/ 0 ккал")
+            self.calorie_progress.setValue(0)
+            self.protein_value.setText("0г")
+            self.fat_value.setText("0г")
+            self.carbs_value.setText("0г")
+            self.recommendations_list.clear()
+            self.meals_list.clear()
             return
 
         # Обновляем приветствие
@@ -84,7 +118,7 @@ class DashboardPage(QWidget):
 
         # Получаем статистику
         stats = get_user_stats(user.id)
-        today = stats['today']
+        today = stats.get('today', {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0})
 
         # Обновляем калории
         self.calories_consumed.setText(f"{int(today['calories'])}")
@@ -98,6 +132,12 @@ class DashboardPage(QWidget):
         self.protein_value.setText(f"{int(today['protein'])}г")
         self.fat_value.setText(f"{int(today['fat'])}г")
         self.carbs_value.setText(f"{int(today['carbs'])}г")
+
+        # Прогресс-бары БЖУ (можно добавить логику на основе целей)
+        # Пока оставим заглушки
+        self.protein_progress.setValue(min(100, int((today['protein'] / 50) * 100)))  # примерная цель 50г
+        self.fat_progress.setValue(min(100, int((today['fat'] / 40) * 100)))  # 40г
+        self.carbs_progress.setValue(min(100, int((today['carbs'] / 200) * 100)))  # 200г
 
         # Обновляем рекомендации
         self.update_recommendations()
@@ -147,7 +187,13 @@ class DashboardPage(QWidget):
                 background-color: {COLORS['background']};
             }}
         """)
-        add_meal_btn.clicked.connect(lambda: self.main_window.navigate_to("diary"))
+        # Переход к странице дневника (используем навигацию главного окна)
+        if self.main_window:
+            add_meal_btn.clicked.connect(lambda: self.main_window.navigate_to(
+                type(self.main_window).__dict__.get('DiaryPage')  # небольшой хак, лучше импортировать явно
+            ))
+        else:
+            add_meal_btn.setEnabled(False)
         layout.addWidget(add_meal_btn)
 
         return frame
@@ -297,8 +343,8 @@ class DashboardPage(QWidget):
         # Белки
         protein_layout = QVBoxLayout()
         protein_layout.addWidget(QLabel("Белки"))
-        protein_progress = QProgressBar()
-        protein_progress.setStyleSheet(f"""
+        self.protein_progress = QProgressBar()
+        self.protein_progress.setStyleSheet(f"""
             QProgressBar {{
                 background-color: {COLORS['error_light']};
                 border: none;
@@ -310,15 +356,14 @@ class DashboardPage(QWidget):
                 border-radius: 6px;
             }}
         """)
-        protein_progress.setValue(0)
-        protein_layout.addWidget(protein_progress)
-        self.protein_progress = protein_progress
+        self.protein_progress.setValue(0)
+        protein_layout.addWidget(self.protein_progress)
 
         # Жиры
         fat_layout = QVBoxLayout()
         fat_layout.addWidget(QLabel("Жиры"))
-        fat_progress = QProgressBar()
-        fat_progress.setStyleSheet(f"""
+        self.fat_progress = QProgressBar()
+        self.fat_progress.setStyleSheet(f"""
             QProgressBar {{
                 background-color: {COLORS['warning_light']};
                 border: none;
@@ -330,15 +375,14 @@ class DashboardPage(QWidget):
                 border-radius: 6px;
             }}
         """)
-        fat_progress.setValue(0)
-        fat_layout.addWidget(fat_progress)
-        self.fat_progress = fat_progress
+        self.fat_progress.setValue(0)
+        fat_layout.addWidget(self.fat_progress)
 
         # Углеводы
         carbs_layout = QVBoxLayout()
         carbs_layout.addWidget(QLabel("Углеводы"))
-        carbs_progress = QProgressBar()
-        carbs_progress.setStyleSheet(f"""
+        self.carbs_progress = QProgressBar()
+        self.carbs_progress.setStyleSheet(f"""
             QProgressBar {{
                 background-color: {COLORS['secondary_light']};
                 border: none;
@@ -350,9 +394,8 @@ class DashboardPage(QWidget):
                 border-radius: 6px;
             }}
         """)
-        carbs_progress.setValue(0)
-        carbs_layout.addWidget(carbs_progress)
-        self.carbs_progress = carbs_progress
+        self.carbs_progress.setValue(0)
+        carbs_layout.addWidget(self.carbs_progress)
 
         macro_layout.addLayout(protein_layout)
         macro_layout.addLayout(fat_layout)
@@ -448,7 +491,15 @@ class DashboardPage(QWidget):
                 color: {COLORS['primary_dark']};
             }}
         """)
-        view_all_btn.clicked.connect(lambda: self.main_window.navigate_to("diary"))
+        if self.main_window:
+            # Импортируем DiaryPage для навигации (чтобы избежать циклического импорта, делаем локально)
+            try:
+                from ui.pages.diary import DiaryPage
+                view_all_btn.clicked.connect(lambda: self.main_window.navigate_to(DiaryPage))
+            except ImportError:
+                view_all_btn.setEnabled(False)
+        else:
+            view_all_btn.setEnabled(False)
         layout.addWidget(view_all_btn)
 
         return frame
@@ -456,11 +507,16 @@ class DashboardPage(QWidget):
     def update_recommendations(self):
         """Обновление рекомендаций"""
         self.recommendations_list.clear()
-        user = self.main_window.current_user
+        user = self.main_window.current_user if self.main_window else None
         if not user:
+            self.recommendations_list.addItem("Войдите или создайте профиль")
             return
 
-        from core.recommender import SimpleRecommender
+        try:
+            from core.recommender import SimpleRecommender
+        except ImportError:
+            self.recommendations_list.addItem("Модуль рекомендаций недоступен")
+            return
 
         # Получаем рекомендации в зависимости от типа диеты
         recipes = SimpleRecommender.get_quick_recommendations(
@@ -469,16 +525,22 @@ class DashboardPage(QWidget):
             count=3
         )
 
+        if not recipes:
+            self.recommendations_list.addItem("Рекомендации пока отсутствуют")
+            return
+
         for recipe in recipes:
             item = QListWidgetItem()
-            item.setText(f"🍳 {recipe.name}\n   {int(recipe.calories)} ккал | Б:{int(recipe.protein)} Ж:{int(recipe.fat)} У:{int(recipe.carbs)}")
+            item.setText(
+                f"🍳 {recipe.name}\n   {int(recipe.calories)} ккал | Б:{int(recipe.protein)} Ж:{int(recipe.fat)} У:{int(recipe.carbs)}")
             self.recommendations_list.addItem(item)
 
     def update_recent_meals(self):
         """Обновление списка последних приёмов пищи"""
         self.meals_list.clear()
-        user = self.main_window.current_user
+        user = self.main_window.current_user if self.main_window else None
         if not user:
+            self.meals_list.addItem("Нет данных о пользователе")
             return
 
         meals = get_today_meals(user.id)
