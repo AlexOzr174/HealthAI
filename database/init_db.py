@@ -1,5 +1,5 @@
 # Инициализация базы данных и начальные данные
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from .models import Base, Product, Recipe, Achievement
 from config.settings import DB_PATH
@@ -11,10 +11,24 @@ def get_engine():
     engine = create_engine(f'sqlite:///{DB_PATH}', echo=False)
     return engine
 
+
+def _ensure_users_special_diets_column(engine):
+    """Миграция SQLite: колонка special_diets_json для страницы «Специальные диеты»."""
+    try:
+        insp = inspect(engine)
+        cols = [c["name"] for c in insp.get_columns("users")]
+        if "special_diets_json" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN special_diets_json TEXT"))
+    except Exception:
+        pass
+
+
 def init_database():
     """Инициализация базы данных с созданием таблиц"""
     engine = get_engine()
     Base.metadata.create_all(engine)
+    _ensure_users_special_diets_column(engine)
     return engine
 
 def get_session():

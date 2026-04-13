@@ -159,18 +159,18 @@ class AIChatWidget(QWidget):
         send_button.setCursor(Qt.CursorShape.PointingHandCursor)
         send_button.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 25px;
                 font-size: 20px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #E8F5E9;
             }
             QPushButton:pressed {
-                background-color: #3d8b40;
+                background-color: #C8E6C9;
             }
         """)
         send_button.clicked.connect(self.send_message)

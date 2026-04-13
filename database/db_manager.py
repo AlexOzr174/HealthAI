@@ -1,7 +1,10 @@
 # Database Manager - совместимый интерфейс для HealthAI
+import logging
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import and_, func
 from datetime import datetime, date, timedelta
+
+_log = logging.getLogger(__name__)
 from .models import User, Meal, Product, Recipe, Achievement, UserAchievement, WeeklyPlan
 from .init_db import get_engine, init_database
 
@@ -225,8 +228,9 @@ class DatabaseManager:
             
             session.commit()
             return True
-        except:
+        except Exception as e:
             session.rollback()
+            _log.warning("add_achievement: не удалось сохранить: %s", e, exc_info=True)
             return False
         finally:
             session.close()

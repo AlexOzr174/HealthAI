@@ -5,12 +5,14 @@
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
-    QPushButton, QLineEdit, QScrollArea, QFrame, QCheckBox, QMessageBox
+    QPushButton, QLineEdit, QScrollArea, QFrame, QCheckBox,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
+from ui.font_helpers import emoji_font_family, ui_font_family
 from ui.styles import Styles
+from ui.components.dialogs import show_error, show_message, show_warning
 
 
 class APIServiceCard(QWidget):
@@ -43,18 +45,18 @@ class APIServiceCard(QWidget):
         header_layout.setSpacing(10)
 
         icon_label = QLabel(icon)
-        icon_label.setFont(QFont("Segoe UI Emoji", 24))
+        icon_label.setFont(QFont(emoji_font_family(), 24))
         header_layout.addWidget(icon_label)
 
         title_label = QLabel(name)
-        title_label.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        title_label.setFont(QFont(ui_font_family(), 14, QFont.Weight.Bold))
         header_layout.addWidget(title_label)
 
         header_layout.addStretch()
 
         # Статус подключения
         self.status_label = QLabel("❌ Не подключено")
-        self.status_label.setFont(QFont("Segoe UI", 9))
+        self.status_label.setFont(QFont(ui_font_family(), 9))
         self.status_label.setStyleSheet("color: #e74c3c;")
         header_layout.addWidget(self.status_label)
 
@@ -62,7 +64,7 @@ class APIServiceCard(QWidget):
 
         # Описание
         desc_label = QLabel(description)
-        desc_label.setFont(QFont("Segoe UI", 10))
+        desc_label.setFont(QFont(ui_font_family(), 10))
         desc_label.setStyleSheet("color: #666;")
         desc_label.setWordWrap(True)
         layout.addWidget(desc_label)
@@ -72,7 +74,7 @@ class APIServiceCard(QWidget):
         key_layout.setSpacing(10)
 
         key_label = QLabel(api_key_label + ":")
-        key_label.setFont(QFont("Segoe UI", 10))
+        key_label.setFont(QFont(ui_font_family(), 10))
         key_layout.addWidget(key_label)
 
         self.api_key_input = QLineEdit()
@@ -130,7 +132,7 @@ class APIServiceCard(QWidget):
         api_key = self.api_key_input.text().strip()
 
         if not api_key:
-            QMessageBox.warning(self, "Ошибка", "Введите API ключ для проверки!")
+            show_warning(self, "Проверка API", "Введите API ключ для проверки!")
             return
 
         # Симуляция проверки (в реальности здесь будет запрос к API)
@@ -149,12 +151,12 @@ class APIServiceCard(QWidget):
             self.status_label.setText("✅ Подключено")
             self.status_label.setStyleSheet("color: #2ecc71;")
             self.connection_tested.emit(self.service_id, True)
-            QMessageBox.information(self, "Успех", f"Подключение к {self.service_id} успешно!")
+            show_message(self, "Успех", f"Подключение к {self.service_id} успешно!")
         else:
             self.status_label.setText("❌ Ошибка")
             self.status_label.setStyleSheet("color: #e74c3c;")
             self.connection_tested.emit(self.service_id, False)
-            QMessageBox.critical(self, "Ошибка", "Неверный API ключ или сеть недоступна.")
+            show_error(self, "Ошибка", "Неверный API ключ или сеть недоступна.")
 
     def open_docs(self):
         """Открыть документацию"""
@@ -166,7 +168,7 @@ class APIServiceCard(QWidget):
         api_key = self.api_key_input.text().strip()
 
         if not api_key:
-            QMessageBox.warning(self, "Ошибка", "Введите API ключ!")
+            show_warning(self, "Сохранение", "Введите API ключ!")
             return
 
         settings = {
@@ -195,12 +197,12 @@ class APIIntegrationPage(QWidget):
 
         # Заголовок
         header = QLabel("🌐 Интеграция с API")
-        header.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
+        header.setFont(QFont(ui_font_family(), 24, QFont.Weight.Bold))
         layout.addWidget(header)
 
         subtitle = QLabel(
             "Подключите внешние сервисы для расширения базы продуктов и рецептов. Получайте актуальную нутрициологическую информацию.")
-        subtitle.setFont(QFont("Segoe UI", 11))
+        subtitle.setFont(QFont(ui_font_family(), 11))
         subtitle.setStyleSheet("color: #666; margin-bottom: 20px;")
         layout.addWidget(subtitle)
 
@@ -218,13 +220,13 @@ class APIIntegrationPage(QWidget):
         info_layout.setSpacing(5)
 
         info_title = QLabel("ℹ️ Как получить API ключи?")
-        info_title.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        info_title.setFont(QFont(ui_font_family(), 11, QFont.Weight.Bold))
         info_title.setStyleSheet("color: #2980b9;")
         info_layout.addWidget(info_title)
 
         info_text = QLabel(
             "Зарегистрируйтесь на сайтах сервисов и получите бесплатные API ключи в разделе разработчика. Большинство сервисов предоставляют бесплатный тариф с лимитами.")
-        info_text.setFont(QFont("Segoe UI", 10))
+        info_text.setFont(QFont(ui_font_family(), 10))
         info_text.setWordWrap(True)
         info_layout.addWidget(info_text)
 
@@ -292,7 +294,7 @@ class APIIntegrationPage(QWidget):
 
         # Глобальные настройки
         global_group = QGroupBox("⚙️ Глобальные настройки API")
-        global_group.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        global_group.setFont(QFont(ui_font_family(), 12, QFont.Weight.Bold))
         global_group.setStyleSheet("""
             QGroupBox {
                 border: 1px solid #ddd;
@@ -314,18 +316,18 @@ class APIIntegrationPage(QWidget):
         # Авто-синхронизация
         auto_sync_check = QCheckBox("Автоматически синхронизировать данные при запуске приложения")
         auto_sync_check.setChecked(True)
-        auto_sync_check.setFont(QFont("Segoe UI", 10))
+        auto_sync_check.setFont(QFont(ui_font_family(), 10))
         global_layout.addWidget(auto_sync_check)
 
         # Кэширование
         cache_check = QCheckBox("Кэшировать результаты запросов (рекомендуется для экономии лимитов)")
         cache_check.setChecked(True)
-        cache_check.setFont(QFont("Segoe UI", 10))
+        cache_check.setFont(QFont(ui_font_family(), 10))
         global_layout.addWidget(cache_check)
 
         # Приоритет источников
         priority_label = QLabel("Приоритет источников (перетаскивайте для изменения):")
-        priority_label.setFont(QFont("Segoe UI", 10))
+        priority_label.setFont(QFont(ui_font_family(), 10))
         global_layout.addWidget(priority_label)
 
         priority_list = QLabel("1. Edamam → 2. USDA → 3. Spoonacular → 4. Nutritionix")

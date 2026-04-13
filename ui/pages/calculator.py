@@ -2,6 +2,8 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFormLayout, QLineEdit, QComboBox, QPushButton, QGroupBox
 from PyQt6.QtCore import Qt
 
+from ui.components.press_feedback import attach_press_flash
+
 
 class CalculatorPage(QWidget):
     def __init__(self, main_window=None, parent=None):
@@ -37,11 +39,27 @@ class CalculatorPage(QWidget):
         btn = QPushButton("Рассчитать")
         btn.setObjectName("primaryBtn")
         btn.clicked.connect(self.calculate)
+        attach_press_flash(btn)
         layout.addWidget(btn)
 
         self.result = QLabel("Результат появится здесь")
         self.result.setStyleSheet("font-size: 16px; font-weight: bold; margin-top: 20px;")
         layout.addWidget(self.result)
+
+        help_lbl = QLabel(
+            "<b>BMR</b> — базальный метаболизм (ккал/сутки в покое), оценка по формуле Миффлина — Сан Жеора "
+            "с учётом пола, возраста, веса и роста.<br><br>"
+            "<b>TDEE</b> — суточный расход энергии: BMR × коэффициент активности. Это ориентир полных суточных "
+            "калорий с учётом вашего образа жизни.<br><br>"
+            "Значения помогают сравнить «базу» и расход с едой; точная норма для целей (похудение и т.д.) "
+            "задаётся в профиле."
+        )
+        help_lbl.setWordWrap(True)
+        help_lbl.setTextFormat(Qt.TextFormat.RichText)
+        help_lbl.setStyleSheet(
+            "font-size: 13px; color: #555; background: #F5F7FA; border-radius: 10px; padding: 14px; margin-top: 8px;"
+        )
+        layout.addWidget(help_lbl)
 
         layout.addStretch()
         self.setLayout(layout)

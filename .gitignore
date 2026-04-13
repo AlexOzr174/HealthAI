@@ -1,111 +1,53 @@
-# ==============================================================================
-# HealthAI .gitignore
-# ==============================================================================
+# Environment and secrets
+.env
+settings.env
+secrets.json
+*.log
 
-# --- Python артефакты ---
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# --- Виртуальные окружения ---
-# Рекомендуется игнорировать все venv, но можно добавить исключения если нужно
-venv/
-ENV/
-env/
-.venv/
 .pytest_cache/
-.mypy_cache/
+*.egg-info/
+.eggs/
+dist/
+build/
+venv/
+.venv/
+.python-version
 
-# --- IDE и редакторы ---
+# OS / IDE
+.DS_Store
+Thumbs.db
 .idea/
 .vscode/
 *.swp
-*.swo
-*~
-.project
-.pydevproject
-.settings/
-*.sublime-project
-*.sublime-workspace
 
-# --- macOS системные файлы ---
-.DS_Store
-.AppleDouble
-.LSOverride
-Icon
-._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
+# Project
+registry/
+.cursor/debug-*.log
+.healthai_setup_complete
 
-# --- Базы данных и данные пользователя ---
-# Игнорируем SQLite БД, чтобы не коммитить личные данные пользователей
-*.db
-*.sqlite
-*.sqlite3
-healthai.db
+# Локальная SQLite (создаётся при первом запуске)
+database/*.db
 
-# --- Логи и временные файлы ---
-logs/
-*.log
-tmp/
-temp/
-.cache/
+# Bootstrap / отчёты / сгенерированные артефакты (не в истории git)
+get-pip.py
+startup_report.json
+export_import/*.pdf
+analytics/*.png
 
-# --- Тяжелые файлы и модели (ML) ---
-# Модели часто весят сотни мегабайт, лучше хранить их отдельно или скачивать при запуске
-models/
-weights/
-*.pth
-*.pt
-*.h5
-*.bin
-*.onnx
-*.pb
+# Локальные веса ML в assets (при необходимости положить свои — не коммитить бинарники)
+assets/models/*.onnx
+assets/models/*.pkl
+assets/models/*.h5
 
-# --- Отчеты и экспорт данных пользователей ---
-exports/
-reports/
-*.pdf
-*.csv
-*.json
-!config/*.json
-!assets/*.json
+# Веса vision в репозитории не обязательны (большой файл)
+models/vision/*.pth
 
-# --- Секреты и конфигурация окружения ---
-.env
-.env.local
-.env.*.local
-*.pem
-*.key
-secrets.json
-config_private.py
-
-# --- Документация сборки ---
-MANIFEST
+# Локальные веса Ollama (скачиваются при первом запуске, см. scripts/ensure_ollama_models.*)
+models/ollama/
+models/ollama-serve.log
+# Старый каталог sentence-transformers больше не используется; не коммитить случайные снимки
+models/nlp/

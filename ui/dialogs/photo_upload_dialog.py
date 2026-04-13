@@ -1,13 +1,18 @@
 """
 Диалог загрузки и анализа фотографий еды
 """
+from __future__ import annotations
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFileDialog, QMessageBox, QProgressBar, QTextEdit, QWidget
+    QProgressBar, QTextEdit, QWidget
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QPixmap, QIcon
+from PyQt6.QtGui import QCloseEvent, QPixmap, QIcon
+
+from ui.dialog_chrome import STANDARD_LIGHT_FORM_DIALOG_QSS, apply_light_dialog_chrome
+from ui.file_dialog_utils import get_open_image_path
+from ui.components.press_feedback import attach_press_flash
 
 
 class ImageAnalyzerThread(QThread):
@@ -70,11 +75,27 @@ class PhotoUploadDialog(QDialog):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        apply_light_dialog_chrome(self)
         self.setWindowTitle("📸 Распознавание еды по фото")
         self.setMinimumSize(600, 700)
         self.image_path = None
+        self.analyzer_thread: ImageAnalyzerThread | None = None
+        self._progress_timer = None
         self.setup_ui()
-        
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        if self._progress_timer is not None and self._progress_timer.isActive():
+            self._progress_timer.stop()
+        t = self.analyzer_thread
+        if t is not None:
+            self.analyzer_thread = None
+            t.blockSignals(True)
+            if t.isRunning():
+                t.requestInterruption()
+                t.wait(5000)
+            t.deleteLater()
+        super().closeEvent(event)
+
     def setup_ui(self):
         layout = QVBoxLayout()
         layout.setSpacing(15)
@@ -108,15 +129,15 @@ class PhotoUploadDialog(QDialog):
         self.upload_btn.setMinimumHeight(40)
         self.upload_btn.setStyleSheet("""
             QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 8px;
                 font-size: 14px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #2980b9;
+                background-color: #EBF5FB;
             }
         """)
         self.upload_btn.clicked.connect(self.upload_image)
@@ -126,18 +147,20 @@ class PhotoUploadDialog(QDialog):
         self.analyze_btn.setMinimumHeight(40)
         self.analyze_btn.setStyleSheet("""
             QPushButton {
-                background-color: #27ae60;
-                color: white;
-                border: none;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1B5E20;
                 border-radius: 8px;
                 font-size: 14px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #229954;
+                background-color: #E8F5E9;
             }
             QPushButton:disabled {
-                background-color: #95a5a6;
+                background-color: #EEEEEE;
+                color: #757575;
+                border: 2px solid #9E9E9E;
             }
         """)
         self.analyze_btn.clicked.connect(self.analyze_image)
@@ -187,18 +210,20 @@ class PhotoUploadDialog(QDialog):
         self.add_meal_btn.setMinimumHeight(40)
         self.add_meal_btn.setStyleSheet("""
             QPushButton {
-                background-color: #27ae60;
-                color: white;
-                border: none;
+                background-color: #E8F5E9;
+                color: #1a1a1a;
+                border: 2px solid #1B5E20;
                 border-radius: 8px;
                 font-size: 14px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #229954;
+                background-color: #C8E6C9;
             }
             QPushButton:disabled {
-                background-color: #95a5a6;
+                background-color: #EEEEEE;
+                color: #757575;
+                border: 2px solid #9E9E9E;
             }
         """)
         self.add_meal_btn.clicked.connect(self.add_to_diary)
@@ -209,15 +234,15 @@ class PhotoUploadDialog(QDialog):
         cancel_btn.setMinimumHeight(40)
         cancel_btn.setStyleSheet("""
             QPushButton {
-                background-color: #e74c3c;
-                color: white;
-                border: none;
+                background-color: #FFEBEE;
+                color: #1a1a1a;
+                border: 2px solid #C0392B;
                 border-radius: 8px;
                 font-size: 14px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #c0392b;
+                background-color: #FFCDD2;
             }
         """)
         cancel_btn.clicked.connect(self.reject)
@@ -226,15 +251,20 @@ class PhotoUploadDialog(QDialog):
         layout.addLayout(action_layout)
         
         self.setLayout(layout)
-    
+
+        for w in (
+            self.upload_btn,
+            self.analyze_btn,
+            self.add_meal_btn,
+            cancel_btn,
+        ):
+            attach_press_flash(w)
+
+        self.setStyleSheet(STANDARD_LIGHT_FORM_DIALOG_QSS)
+
     def upload_image(self):
         """Загрузка изображения"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Выберите изображение",
-            "",
-            "Images (*.png *.xpm *.jpg *.jpeg *.bmp)"
-        )
+        file_path = get_open_image_path(self, "Выберите изображение")
         
         if file_path:
             self.image_path = file_path
@@ -270,21 +300,26 @@ class PhotoUploadDialog(QDialog):
         
         # Анимация прогресса
         from PyQt6.QtCore import QTimer
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_progress)
-        self.timer.start(100)
+
+        if self._progress_timer is not None and self._progress_timer.isActive():
+            self._progress_timer.stop()
+        self._progress_timer = QTimer(self)
+        self._progress_timer.timeout.connect(self.update_progress)
+        self._progress_timer.start(100)
     
     def update_progress(self):
         """Обновление прогресс бара"""
         value = self.progress.value() + 5
         if value >= 90:
-            self.timer.stop()
+            if self._progress_timer is not None:
+                self._progress_timer.stop()
         else:
             self.progress.setValue(value)
     
     def on_analysis_complete(self, result: dict):
         """Обработка результатов анализа"""
-        self.timer.stop()
+        if self._progress_timer is not None:
+            self._progress_timer.stop()
         self.progress.setValue(100)
         
         # Форматирование результатов
@@ -339,14 +374,17 @@ class PhotoUploadDialog(QDialog):
     
     def on_analysis_error(self, error: str):
         """Обработка ошибки анализа"""
-        self.timer.stop()
+        if self._progress_timer is not None:
+            self._progress_timer.stop()
         self.progress.setVisible(False)
         self.analyze_btn.setEnabled(True)
         
-        QMessageBox.critical(
+        from ui.components.dialogs import show_error
+
+        show_error(
             self,
             "Ошибка анализа",
-            f"Не удалось проанализировать изображение:\n{error}"
+            f"Не удалось проанализировать изображение:\n{error}",
         )
     
     def add_to_diary(self):
@@ -355,11 +393,9 @@ class PhotoUploadDialog(QDialog):
             return
         
         # Здесь будет интеграция с базой данных
-        QMessageBox.information(
-            self,
-            "Успешно",
-            "Данные добавлены в дневник питания!"
-        )
+        from ui.components.dialogs import show_message
+
+        show_message(self, "Успешно", "Данные добавлены в дневник питания!")
         
         self.accept()
     

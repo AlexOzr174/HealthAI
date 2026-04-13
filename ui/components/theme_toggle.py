@@ -1,7 +1,7 @@
 # Переключатель темы для HealthAI
 from PyQt6.QtWidgets import QWidget, QPushButton, QHBoxLayout, QLabel
 from PyQt6.QtCore import pyqtSignal
-from ui.styles import toggle_theme, COLORS
+from ui.styles import toggle_theme, THEME_NAME
 
 
 class ThemeToggle(QWidget):
@@ -40,7 +40,7 @@ class ThemeToggle(QWidget):
         
     def update_button_style(self):
         """Обновление стиля кнопки"""
-        is_dark = COLORS.get('background') == '#121212'
+        is_dark = THEME_NAME == 'dark'
         
         if is_dark:
             self.toggle_button.setStyleSheet("""
@@ -72,4 +72,4 @@ class ThemeToggle(QWidget):
         
     def get_current_theme(self) -> str:
         """Получение текущей темы"""
-        return 'dark' if COLORS.get('background') == '#121212' else 'light'
+        return THEME_NAME

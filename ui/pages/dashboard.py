@@ -176,9 +176,9 @@ class DashboardPage(QWidget):
         add_meal_btn = QPushButton("+ Добавить еду")
         add_meal_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: white;
-                color: {COLORS['primary']};
-                border: none;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 8px;
                 padding: 12px 24px;
                 font-weight: bold;
@@ -187,11 +187,13 @@ class DashboardPage(QWidget):
                 background-color: {COLORS['background']};
             }}
         """)
-        # Переход к странице дневника (используем навигацию главного окна)
         if self.main_window:
-            add_meal_btn.clicked.connect(lambda: self.main_window.navigate_to(
-                type(self.main_window).__dict__.get('DiaryPage')  # небольшой хак, лучше импортировать явно
-            ))
+            try:
+                from ui.pages.diary import DiaryPage
+
+                add_meal_btn.clicked.connect(lambda: self.main_window.navigate_to(DiaryPage))
+            except ImportError:
+                add_meal_btn.setEnabled(False)
         else:
             add_meal_btn.setEnabled(False)
         layout.addWidget(add_meal_btn)
@@ -481,14 +483,16 @@ class DashboardPage(QWidget):
         view_all_btn = QPushButton("Открыть дневник →")
         view_all_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: transparent;
-                border: none;
-                color: {COLORS['primary']};
-                padding: 8px;
+                background-color: {COLORS['surface']};
+                border: 2px solid #2C3E50;
+                color: #1a1a1a;
+                padding: 8px 12px;
+                border-radius: 8px;
                 text-align: left;
+                font-weight: 600;
             }}
             QPushButton:hover {{
-                color: {COLORS['primary_dark']};
+                background-color: {COLORS['background']};
             }}
         """)
         if self.main_window:

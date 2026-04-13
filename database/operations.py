@@ -2,7 +2,16 @@
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import and_, func
 from datetime import datetime, date, timedelta
-from .models import User, Meal, Product, Recipe, Achievement, UserAchievement, WeeklyPlan
+from .models import (
+    User,
+    Meal,
+    Product,
+    Recipe,
+    Achievement,
+    UserAchievement,
+    WeeklyPlan,
+    ChatMessage,
+)
 from .init_db import get_engine
 
 def get_session():
@@ -55,6 +64,129 @@ def delete_user(user_id):
             session.commit()
     finally:
         session.close()
+
+
+def update_user_fields(user_id: int, fields: dict):
+    """Частичное обновление полей пользователя по id (без сброса непереданных колонок)."""
+    session = get_session()
+    try:
+        user = session.query(User).filter(User.id == user_id).first()
+        if not user:
+            return False
+        skip = {"id", "created_at"}
+        for key, value in fields.items():
+            if key in skip or not hasattr(user, key):
+                continue
+            setattr(user, key, value)
+        user.updated_at = datetime.now()
+        session.commit()
+        return True
+    finally:
+        session.close()
+
+
+# === Специальные диеты (кето, ИФ и т.д., JSON в users.special_diets_json) ===
+
+
+def _default_special_diets_dict():
+    return {"active_diets": [], "if_window": None}
+
+
+def load_special_diets_settings(user_id: int) -> dict:
+    """Загрузить сохранённые режимы спец. диет."""
+    import json
+
+    user = get_user(user_id)
+    if not user:
+        return _default_special_diets_dict()
+    raw = getattr(user, "special_diets_json", None)
+    if not raw:
+        return _default_special_diets_dict()
+    try:
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            return _default_special_diets_dict()
+        data.setdefault("active_diets", [])
+        data.setdefault("if_window", None)
+        return data
+    except Exception:
+        return _default_special_diets_dict()
+
+
+def save_special_diets_settings(user_id: int, settings: dict) -> bool:
+    """Сохранить режимы спец. диет в БД."""
+    import json
+
+    payload = json.dumps(settings, ensure_ascii=False)
+    return update_user_fields(user_id, {"special_diets_json": payload})
+
+
+# === История чата с AI (память для Ollama) ===
+
+CHAT_HISTORY_MAX_ROWS = 120  # user+assistant пары; при превышении удаляются старые
+
+
+def load_chat_history(user_id: int, limit: int = 50) -> list:
+    """Последние сообщения по времени (по возрастанию), для передачи в LLM."""
+    session = get_session()
+    try:
+        rows = (
+            session.query(ChatMessage)
+            .filter(ChatMessage.user_id == user_id)
+            .order_by(ChatMessage.created_at.asc())
+            .all()
+        )
+        if len(rows) > limit:
+            rows = rows[-limit:]
+        return [{"role": r.role, "content": r.content} for r in rows]
+    finally:
+        session.close()
+
+
+def append_chat_turn(user_id: int, user_content: str, assistant_content: str) -> None:
+    """Сохранить пару реплик; обрезать хвост, если слишком длинная история."""
+    session = get_session()
+    try:
+        session.add(
+            ChatMessage(user_id=user_id, role="user", content=user_content)
+        )
+        session.add(
+            ChatMessage(user_id=user_id, role="assistant", content=assistant_content)
+        )
+        session.commit()
+
+        total = (
+            session.query(ChatMessage)
+            .filter(ChatMessage.user_id == user_id)
+            .count()
+        )
+        if total > CHAT_HISTORY_MAX_ROWS:
+            excess = total - CHAT_HISTORY_MAX_ROWS
+            old = (
+                session.query(ChatMessage)
+                .filter(ChatMessage.user_id == user_id)
+                .order_by(ChatMessage.created_at.asc())
+                .limit(excess)
+                .all()
+            )
+            for m in old:
+                session.delete(m)
+            session.commit()
+    finally:
+        session.close()
+
+
+def clear_chat_history(user_id: int) -> None:
+    """Очистить историю диалога пользователя."""
+    session = get_session()
+    try:
+        session.query(ChatMessage).filter(ChatMessage.user_id == user_id).delete(
+            synchronize_session=False
+        )
+        session.commit()
+    finally:
+        session.close()
+
 
 # === Операции с приёмами пищи ===
 

@@ -178,14 +178,15 @@ class OnboardingPage(QWidget):
         self.calc_btn = QPushButton("Рассчитать")
         self.calc_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['primary']};
-                color: white;
-                border: none;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 8px;
                 padding: 12px 32px;
                 font-size: 16px;
+                font-weight: 600;
             }}
-            QPushButton:hover {{ background-color: {COLORS['primary_hover']}; }}
+            QPushButton:hover {{ background-color: #F0F2F5; }}
         """)
         self.calc_btn.clicked.connect(self.calculate_and_show)
         btn_layout.addWidget(self.calc_btn)
@@ -193,14 +194,15 @@ class OnboardingPage(QWidget):
         self.save_btn = QPushButton("Сохранить и начать")
         self.save_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['success']};
-                color: white;
-                border: none;
+                background-color: #E8F5E9;
+                color: #1a1a1a;
+                border: 2px solid #1B5E20;
                 border-radius: 8px;
                 padding: 12px 32px;
                 font-size: 16px;
+                font-weight: 600;
             }}
-            QPushButton:hover {{ background-color: {COLORS['success_hover']}; }}
+            QPushButton:hover {{ background-color: #C8E6C9; }}
         """)
         self.save_btn.setVisible(False)
         self.save_btn.clicked.connect(self.save_and_finish)

@@ -6,6 +6,16 @@
 ![Python](https://img.shields.io/badge/Python-3.9+-blue)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
+## Модели ML (`models/`)
+
+| Путь | Назначение |
+|------|------------|
+| `models/ollama/` | Веса Ollama (скачиваются скриптами launch/setup; чат и пояснения к фото) |
+| `models/vision/resnet50.pth` | Веса ResNet50 (фото еды → ImageNet → нутриенты) |
+| `models/vision/imagenet_classes.txt` | Подписи классов ImageNet |
+
+Переопределение пути к весам фото: `HEALTHAI_FOOD_MODEL_PATH` в `settings.env`. Параметры Ollama: `HEALTHAI_OLLAMA_*`.
+
 ## 📋 Содержание
 
 - [Возможности](#-возможности)
@@ -142,6 +152,8 @@ python3 healthai/main.py
 cd healthai
 python main.py
 ```
+
+**Продакшен / отладка:** логи в консоль через стандартный `logging` (уровень INFO). Для подробного вывода (в т.ч. отладочных сообщений UI) задайте переменную окружения `HEALTHAI_DEBUG=1`. Промпты Ollama вынесены в `core/ollama_prompts.py`.
 
 ## 📁 Структура проекта
 

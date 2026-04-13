@@ -1,51 +1,86 @@
 # ui/pages/analytics.py
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                             QComboBox, QPushButton, QFrame, QScrollArea)
-from PyQt6.QtCore import Qt, QDate
+# Графики: Agg + PNG → QPixmap. Matplotlib импортируется лениво при первом графике,
+# чтобы не тянуть libpng/matplotlib при старте приложения (macOS + Qt).
+from __future__ import annotations
+
+import io
 from datetime import datetime, timedelta
-import numpy as np
 
-# ---------- ВАЖНО: настройка matplotlib ДО импорта pyplot ----------
-import matplotlib
-
-matplotlib.use('Qt5Agg')  # Используем бэкенд, совместимый с PyQt6
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-
-# --------------------------------------------------------------------
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 try:
     from config.settings import COLORS
 except ImportError:
     COLORS = {
-        'surface': '#FFFFFF',
-        'background': '#F0F2F5',
-        'primary': '#3498DB',
-        'primary_dark': '#2980B9',
-        'text_primary': '#2C3E50',
-        'text_secondary': '#7F8C8D',
-        'warning': '#F39C12',
+        "surface": "#FFFFFF",
+        "background": "#F0F2F5",
+        "primary": "#3498DB",
+        "primary_dark": "#2980B9",
+        "text_primary": "#2C3E50",
+        "text_secondary": "#7F8C8D",
+        "warning": "#F39C12",
     }
 
-from database.operations import get_user_stats, get_meals_by_date_range
-from core.calculator import calculate_bmr, calculate_tdee
+from database.operations import get_meals_by_date_range
 
 
-class MatplotlibCanvas(FigureCanvas):
-    """Холст для отображения matplotlib графиков"""
+def _calories_chart_png_bytes(
+    dates: list,
+    calories: list,
+    target: float,
+    primary_hex: str,
+    warning_hex: str,
+) -> bytes:
+    import numpy as np
+    import matplotlib
 
-    def __init__(self, parent=None, width=8, height=4, dpi=100):
-        self.fig, self.ax = plt.subplots(figsize=(width, height), dpi=dpi)
-        super().__init__(self.fig)
-        self.setParent(parent)
-        self.fig.patch.set_facecolor('#F5F5F5')
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(8, 4), dpi=100)
+    try:
+        fig.patch.set_facecolor("#F5F5F5")
+        x = np.arange(len(dates))
+        ax.bar(x, calories, color=primary_hex, alpha=0.7, label="Калории")
+        ax.axhline(
+            y=target,
+            color=warning_hex,
+            linestyle="--",
+            linewidth=2,
+            label=f"Цель ({target:.0f} ккал)",
+        )
+        date_labels = [d.strftime("%d.%m") for d in dates]
+        ax.set_xticks(x)
+        ax.set_xticklabels(date_labels, rotation=45, ha="right")
+        ax.set_ylabel("Калории (ккал)")
+        ax.set_xlabel("Дата")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", bbox_inches="tight", facecolor=fig.get_facecolor())
+        buf.seek(0)
+        return buf.getvalue()
+    finally:
+        plt.close(fig)
 
 
 class AnalyticsPage(QWidget):
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
         self.main_window = main_window
-        self.current_period = "week"  # week, month, all
+        self.current_period = "week"
         self.setup_ui()
         self.refresh()
 
@@ -58,15 +93,16 @@ class AnalyticsPage(QWidget):
         title.setObjectName("titleLabel")
         layout.addWidget(title)
 
-        # Панель фильтров
         filter_frame = QFrame()
-        filter_frame.setStyleSheet(f"""
+        filter_frame.setStyleSheet(
+            f"""
             QFrame {{
                 background-color: {COLORS['surface']};
                 border-radius: 12px;
                 padding: 12px;
             }}
-        """)
+        """
+        )
         filter_layout = QHBoxLayout(filter_frame)
 
         filter_layout.addWidget(QLabel("Период:"))
@@ -87,7 +123,6 @@ class AnalyticsPage(QWidget):
 
         layout.addWidget(filter_frame)
 
-        # Скролл область для графиков
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("border: none; background-color: transparent;")
@@ -104,13 +139,13 @@ class AnalyticsPage(QWidget):
         self.current_period = period_map.get(text, "week")
         self.refresh()
 
-    def refresh(self):
-        """Загрузка данных и обновление графиков"""
-        # Очистка старых графиков
-        for i in reversed(range(self.content_layout.count())):
-            widget = self.content_layout.itemAt(i).widget()
-            if widget:
-                widget.deleteLater()
+    def refresh(self, *_args):
+        """*_args — слот QPushButton.clicked передаёт bool; игнорируем."""
+        while self.content_layout.count():
+            item = self.content_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
 
         user = self.main_window.current_user if self.main_window else None
         if not user:
@@ -119,7 +154,6 @@ class AnalyticsPage(QWidget):
             self.content_layout.addWidget(no_data)
             return
 
-        # Получение данных за период
         end_date = datetime.now().date()
         if self.current_period == "week":
             start_date = end_date - timedelta(days=7)
@@ -139,37 +173,36 @@ class AnalyticsPage(QWidget):
             self.content_layout.addWidget(no_data)
             return
 
-        # Группировка по дням
-        daily_data = {}
+        daily_data: dict = {}
         for meal in meals:
-            day = meal.meal_date.date() if hasattr(meal, 'meal_date') else meal.date
+            day = meal.meal_date.date() if hasattr(meal, "meal_date") else meal.date
             if day not in daily_data:
-                daily_data[day] = {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
-            daily_data[day]['calories'] += meal.calories
-            daily_data[day]['protein'] += meal.protein
-            daily_data[day]['fat'] += meal.fat
-            daily_data[day]['carbs'] += meal.carbs
+                daily_data[day] = {"calories": 0, "protein": 0, "fat": 0, "carbs": 0}
+            daily_data[day]["calories"] += meal.calories
+            daily_data[day]["protein"] += meal.protein
+            daily_data[day]["fat"] += meal.fat
+            daily_data[day]["carbs"] += meal.carbs
 
         dates = sorted(daily_data.keys())
-        calories = [daily_data[d]['calories'] for d in dates]
+        calories = [daily_data[d]["calories"] for d in dates]
 
-        # График калорий
         self.add_calories_chart(dates, calories, user.target_calories)
 
-        # Сводка по калориям
-        avg_calories = np.mean(calories) if calories else 0
+        avg_calories = float(sum(calories) / len(calories)) if calories else 0.0
         total_calories = sum(calories)
         days_count = len(dates)
 
         stats_frame = QFrame()
-        stats_frame.setStyleSheet(f"background-color: {COLORS['surface']}; border-radius: 12px; padding: 16px;")
+        stats_frame.setStyleSheet(
+            f"background-color: {COLORS['surface']}; border-radius: 12px; padding: 16px;"
+        )
         stats_layout = QHBoxLayout(stats_frame)
 
         stats_items = [
             ("Средние калории", f"{avg_calories:.0f} ккал"),
             ("Всего калорий", f"{total_calories:.0f} ккал"),
             ("Дней записей", str(days_count)),
-            ("Цель", f"{user.target_calories:.0f} ккал")
+            ("Цель", f"{user.target_calories:.0f} ккал"),
         ]
         for label, value in stats_items:
             item_layout = QVBoxLayout()
@@ -182,39 +215,89 @@ class AnalyticsPage(QWidget):
             stats_layout.addLayout(item_layout)
         self.content_layout.addWidget(stats_frame)
 
+        try:
+            from ai_engine.predictive_analytics import PredictiveAnalytics
+
+            fc = PredictiveAnalytics().forecast_from_calorie_balance(
+                target_calories_per_day=float(user.target_calories),
+                avg_daily_intake=avg_calories,
+                current_weight_kg=float(user.weight),
+                horizon_days=7,
+            )
+        except Exception:
+            fc = {"status": "error"}
+        if fc.get("status") == "success":
+            dk = float(fc["estimated_delta_kg"])
+            if dk > 0.01:
+                ch = (
+                    f"ориентировочное снижение ~{dk:.2f} кг за неделю "
+                    f"(вес ~{fc['projected_weight_kg']:.1f} кг)"
+                )
+            elif dk < -0.01:
+                ch = (
+                    f"ориентировочный набор ~{abs(dk):.2f} кг за неделю "
+                    f"(вес ~{fc['projected_weight_kg']:.1f} кг)"
+                )
+            else:
+                ch = f"изменение веса за неделю ~0 кг (вес ~{fc['projected_weight_kg']:.1f} кг)"
+            pred_frame = QFrame()
+            pred_frame.setStyleSheet(
+                f"background-color: {COLORS['surface']}; border-radius: 12px; padding: 16px;"
+            )
+            pred_layout = QVBoxLayout(pred_frame)
+            pt = QLabel("🔮 Прогноз на 7 дней по балансу калорий (~7700 ккал ≈ 1 кг)")
+            pt.setStyleSheet(
+                f"font-size: 16px; font-weight: bold; color: {COLORS['text_primary']};"
+            )
+            pred_layout.addWidget(pt)
+            body = (
+                f"Среднее потребление за период: {avg_calories:.0f} ккал/день при цели {user.target_calories:.0f} ккал.\n"
+                f"Средний дневной баланс: {fc['daily_balance_kcal']:+.0f} ккал ({fc['trend_hint']}).\n"
+                f"{ch}.\n\n"
+                f"{fc['disclaimer']}"
+            )
+            pl = QLabel(body)
+            pl.setWordWrap(True)
+            pl.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 13px;")
+            pred_layout.addWidget(pl)
+            self.content_layout.addWidget(pred_frame)
+
     def add_calories_chart(self, dates, calories, target):
-        """Добавление графика калорий"""
         chart_frame = QFrame()
-        chart_frame.setStyleSheet(f"""
+        chart_frame.setStyleSheet(
+            f"""
             QFrame {{
                 background-color: {COLORS['surface']};
                 border-radius: 12px;
                 padding: 16px;
             }}
-        """)
+        """
+        )
         layout = QVBoxLayout(chart_frame)
         title = QLabel("📊 Калории по дням")
-        title.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {COLORS['text_primary']};")
+        title.setStyleSheet(
+            f"font-size: 16px; font-weight: bold; color: {COLORS['text_primary']};"
+        )
         layout.addWidget(title)
 
-        canvas = MatplotlibCanvas(self, width=8, height=4)
-        ax = canvas.ax
+        try:
+            png = _calories_chart_png_bytes(
+                dates,
+                calories,
+                float(target),
+                COLORS["primary"],
+                COLORS.get("warning", "#F39C12"),
+            )
+            img = QImage.fromData(png, "PNG")
+            pix = QPixmap.fromImage(img)
+            chart_lbl = QLabel()
+            chart_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            chart_lbl.setPixmap(pix)
+            chart_lbl.setMinimumSize(pix.size())
+            layout.addWidget(chart_lbl)
+        except Exception as e:
+            err = QLabel(f"Не удалось построить график: {e}")
+            err.setWordWrap(True)
+            layout.addWidget(err)
 
-        # Преобразование дат для оси X
-        x = np.arange(len(dates))
-        ax.bar(x, calories, color=COLORS['primary'], alpha=0.7, label='Калории')
-        ax.axhline(y=target, color=COLORS.get('warning', '#F39C12'), linestyle='--', linewidth=2,
-                   label=f'Цель ({target:.0f} ккал)')
-
-        # Форматирование дат
-        date_labels = [d.strftime('%d.%m') for d in dates]
-        ax.set_xticks(x)
-        ax.set_xticklabels(date_labels, rotation=45, ha='right')
-        ax.set_ylabel('Калории (ккал)')
-        ax.set_xlabel('Дата')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-
-        canvas.fig.tight_layout()
-        layout.addWidget(canvas)
         self.content_layout.addWidget(chart_frame)

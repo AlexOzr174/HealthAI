@@ -169,12 +169,13 @@ class AIRecipeGeneratorWidget(QWidget):
         generate_btn.setFixedHeight(50)
         generate_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50;
-                color: white;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 10px;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #E8F5E9;
             }
         """)
         generate_btn.clicked.connect(self.generate_recipe)
@@ -205,20 +206,24 @@ class AIRecipeGeneratorWidget(QWidget):
         save_btn = QPushButton("💾 Сохранить")
         save_btn.setStyleSheet("""
             QPushButton {
-                background-color: #2196F3;
-                color: white;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 8px;
                 padding: 10px 20px;
+                font-weight: 600;
             }
         """)
         
         share_btn = QPushButton("📤 Поделиться")
         share_btn.setStyleSheet("""
             QPushButton {
-                background-color: #FF9800;
-                color: white;
+                background-color: #FFF3E0;
+                color: #1a1a1a;
+                border: 2px solid #E65100;
                 border-radius: 8px;
                 padding: 10px 20px;
+                font-weight: 600;
             }
         """)
         

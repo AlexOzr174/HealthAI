@@ -3,10 +3,17 @@ AI Engine for HealthAI - Центральный модуль ИИ
 Объединяет все ИИ-компоненты: чат-бот, аналитику, генератор рецептов
 """
 
+import logging
+
 from ai_engine.nutritionist_chatbot import NutritionistChatbot
-from ai_engine.predictive_analytics import PredictiveAnalytics
 from ai_engine.recipe_generator import RecipeGenerator
-from typing import Dict, List, Optional
+from ai_engine.llm_chat_backend import LLMChatBackend
+from typing import Dict, Generator, List, Optional
+
+_log = logging.getLogger(__name__)
+
+# Сколько последних реплик держать в RAM (пары user+assistant считаются по 2 сообщения)
+_OLLAMA_CHAT_MEMORY_CAP = 50
 
 
 class AIEngine:
@@ -21,11 +28,41 @@ class AIEngine:
     
     def __init__(self):
         self.chatbot = NutritionistChatbot()
-        self.analytics = PredictiveAnalytics()
+        self._analytics = None
         self.recipe_generator = RecipeGenerator()
-        
+        self._llm = LLMChatBackend()
+
         # Кэш пользовательских данных
         self.user_contexts = {}
+
+    @property
+    def analytics(self):
+        """sklearn подгружается только при первом обращении к аналитике (macOS/Qt)."""
+        if self._analytics is None:
+            from ai_engine.predictive_analytics import PredictiveAnalytics
+
+            self._analytics = PredictiveAnalytics()
+        return self._analytics
+
+    @staticmethod
+    def _profile_context(profile: Dict) -> str:
+        if not profile:
+            return "Данные профиля не заполнены."
+        parts = []
+        for k in (
+            "name",
+            "weight",
+            "height",
+            "age",
+            "gender",
+            "goal",
+            "activity_level",
+            "diet_type",
+            "target_calories",
+        ):
+            if k in profile and profile.get(k) is not None:
+                parts.append(f"{k}: {profile[k]}")
+        return "; ".join(parts) if parts else "Профиль минимальный."
     
     def initialize_user(self, user_id: int, profile: Dict) -> Dict:
         """
@@ -38,15 +75,24 @@ class AIEngine:
         Returns:
             Подтверждение инициализации
         """
+        prev = self.user_contexts.get(user_id, {})
+        try:
+            from database.operations import load_chat_history
+
+            ollama_messages = load_chat_history(user_id, limit=_OLLAMA_CHAT_MEMORY_CAP)
+        except Exception:
+            _log.debug("История чата из БД недоступна", exc_info=True)
+            ollama_messages = list(prev.get("ollama_messages", []))
+
         self.user_contexts[user_id] = {
-            'profile': profile,
-            'meal_history': [],
-            'weight_history': [],
-            'preferences': profile.get('preferences', {}),
-            'restrictions': profile.get('restrictions', [])
+            "profile": profile,
+            "meal_history": prev.get("meal_history", []),
+            "weight_history": prev.get("weight_history", []),
+            "preferences": profile.get("preferences", {}),
+            "restrictions": profile.get("restrictions", []),
+            "ollama_messages": ollama_messages,
         }
-        
-        # Установка профиля в чат-бот
+
         self.chatbot.set_user_profile(profile)
         
         return {
@@ -54,6 +100,30 @@ class AIEngine:
             'message': f'Пользователь {user_id} успешно инициализирован в ИИ-системе',
             'components_ready': ['chatbot', 'analytics', 'recipe_generator']
         }
+
+    def _append_ollama_history(
+        self, user_id: int, user_plain: str, assistant_plain: str
+    ) -> None:
+        """Добавить пару реплик в память диалога (Ollama/правила) и в SQLite."""
+        u = (user_plain or "").strip()
+        a = (assistant_plain or "").strip()
+        if not u or not a:
+            return
+        ctx = self.user_contexts.get(user_id)
+        if ctx is None:
+            ctx = {"ollama_messages": []}
+            self.user_contexts[user_id] = ctx
+        hist = ctx.setdefault("ollama_messages", [])
+        hist.append({"role": "user", "content": u})
+        hist.append({"role": "assistant", "content": a})
+        if len(hist) > _OLLAMA_CHAT_MEMORY_CAP:
+            hist[:] = hist[-_OLLAMA_CHAT_MEMORY_CAP:]
+        try:
+            from database.operations import append_chat_turn
+
+            append_chat_turn(user_id, u, a)
+        except Exception:
+            _log.warning("Не удалось сохранить историю чата в БД", exc_info=True)
     
     def chat(self, user_id: int, message: str) -> Dict:
         """
@@ -64,14 +134,93 @@ class AIEngine:
             message: Текст сообщения
         
         Returns:
-            Ответ чат-бота
+            Ответ чат-бота (ключи text, message, source: llm | rules)
         """
         context = self.user_contexts.get(user_id, {})
         meal_history = context.get('meal_history', [])
-        
+        profile = context.get('profile', {})
+        pc = self._profile_context(profile)
+        hist = context.get("ollama_messages", [])
+
+        ollama_text = self._llm.try_ollama_chat(message, pc, history=hist)
+        if ollama_text:
+            self._append_ollama_history(user_id, message.strip(), ollama_text.strip())
+            return {
+                "text": ollama_text,
+                "message": ollama_text,
+                "source": "llm",
+                "intent": "llm",
+            }
+
         response = self.chatbot.generate_response(message, meal_history)
-        
+        text = response.get("text", "")
+        response["message"] = text
+        response["source"] = "rules"
+        if text:
+            self._append_ollama_history(user_id, message.strip(), text.strip())
         return response
+
+    def chat_stream(self, user_id: int, message: str) -> Generator[str, None, None]:
+        """
+        Потоковый ответ: при доступной Ollama — куски из /api/chat stream=True;
+        иначе один блок текста из правил NutritionistChatbot.
+        """
+        context = self.user_contexts.get(user_id, {})
+        meal_history = context.get("meal_history", [])
+        profile = context.get("profile", {})
+        pc = self._profile_context(profile)
+        hist = context.get("ollama_messages", [])
+
+        stream_it = self._llm.iter_ollama_chat(
+            message.strip(), pc, history=hist
+        )
+        if stream_it is not None:
+            buf: List[str] = []
+            try:
+                for part in stream_it:
+                    buf.append(part)
+                    yield part
+            finally:
+                full = "".join(buf).strip()
+                if full:
+                    self._append_ollama_history(user_id, message.strip(), full)
+            return
+
+        response = self.chatbot.generate_response(message, meal_history)
+        text = response.get("text", "")
+        if text:
+            t = text.strip()
+            self._append_ollama_history(user_id, message.strip(), t)
+            yield t
+
+    def chat_stream_welcome(self, user_id: int) -> Generator[str, None, None]:
+        """
+        Приветствие при открытии чата: стриминг от Ollama; в историю диалога не пишется.
+        """
+        from core.ollama_prompts import CHAT_WELCOME_USER_PROMPT
+
+        context = self.user_contexts.get(user_id, {})
+        profile = context.get("profile", {})
+        pc = self._profile_context(profile)
+
+        stream_it = self._llm.iter_ollama_chat(
+            CHAT_WELCOME_USER_PROMPT.strip(), pc, history=[]
+        )
+        if stream_it is not None:
+            yield from stream_it
+            return
+
+        name = (profile or {}).get("name") or ""
+        if name:
+            yield (
+                f"Здравствуйте, {name}! Я ИИ-нутрициолог HealthAI. "
+                "Спрашивайте о питании, калориях и привычках — подскажу с учётом вашего профиля."
+            )
+        else:
+            yield (
+                "Здравствуйте! Я ИИ-нутрициолог HealthAI. "
+                "Задайте вопрос о питании, калориях или режиме — разберёмся вместе."
+            )
     
     def get_weight_analysis(self, user_id: int, weight_history: List[Dict]) -> Dict:
         """

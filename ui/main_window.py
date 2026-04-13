@@ -1,129 +1,187 @@
 # ui/main_window.py
+import logging
+import os
 import sys
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QStackedWidget, QFrame, \
-    QSizePolicy, QApplication
+    QSizePolicy, QApplication, QMenuBar, QMenu
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QIcon, QFont
+from PyQt6.QtGui import QIcon, QFont, QAction, QKeySequence
 
 # Импорт стилей
 from ui.styles import Styles, set_theme
 
-print("  [main_window] Импорт страниц...")
+_log = logging.getLogger(__name__)
+
 # Импорт страниц
 try:
     from ui.pages.dashboard import DashboardPage
-
-    print("    DashboardPage OK")
+    from ui.pages.profile_page import ProfilePage
     from ui.pages.calculator import CalculatorPage
-
-    print("    CalculatorPage OK")
     from ui.pages.diary import DiaryPage
-
-    print("    DiaryPage OK")
     from ui.pages.planner import PlannerPage
-
-    print("    PlannerPage OK")
     from ui.pages.recipes import RecipesPage
-
-    print("    RecipesPage OK")
     from ui.pages.products import ProductsPage
-
-    print("    ProductsPage OK")
     from ui.pages.ai_chat import AIChatPage
-
-    print("    AIChatPage OK")
-    # from ui.pages.analytics import AnalyticsPage  # отключено из-за segmentation fault
-    # print("    AnalyticsPage OK")
+    from ui.pages.analytics import AnalyticsPage
     from ui.pages.photo_analysis import PhotoAnalysisPage
-
-    print("    PhotoAnalysisPage OK")
     from ui.pages.settings_notifications import SettingsNotificationsPage
-
-    print("    SettingsNotificationsPage OK")
     from ui.pages.settings_diets import SpecialDietsPage
-
-    print("    SpecialDietsPage OK")
     from ui.pages.settings_api import APIIntegrationPage
-
-    print("    APIIntegrationPage OK")
 except ImportError as e:
-    print(f"CRITICAL ERROR: Не удалось импортировать страницы: {e}")
+    logging.getLogger(__name__).critical("Не удалось импортировать страницы: %s", e)
     sys.exit(1)
 
-print("  [main_window] Импорт сервисов...")
+_log.debug("Страницы UI импортированы")
+
 # Импорт сервисов (исправлены на существующие модули)
 try:
     from core.notifications import SmartNotifications
     from core.special_diets import SpecialDiets
-
-    print("    Сервисы импортированы")
 except ImportError as e:
-    print(f"WARNING: Не удалось импортировать сервисы: {e}")
+    _log.warning("Сервисы уведомлений/диет недоступны: %s", e)
     SmartNotifications = None
     SpecialDiets = None
 
-print("  [main_window] Импорт операций БД...")
 # Импорт операций с БД
 try:
-    from database.operations import get_user
+    from config.settings import APP_ICON_PATH
+except ImportError:
+    APP_ICON_PATH = ""
 
-    print("    get_user импортирован")
+try:
+    from database.operations import get_user
 except ImportError:
     get_user = None
-    print("WARNING: database.operations не найден. Пользователь не будет загружен.")
+    _log.warning("database.operations не найден — пользователь не будет загружен из БД")
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
-        print("  [MainWindow] __init__ начало")
+        _log.debug("MainWindow: init")
         super().__init__()
-        print("  [MainWindow] super().__init__() выполнено")
         self.setWindowTitle("HealthAI - Умный помощник питания")
         self.setMinimumSize(1200, 800)
+        if APP_ICON_PATH and os.path.isfile(APP_ICON_PATH):
+            self.setWindowIcon(QIcon(APP_ICON_PATH))
 
-        print("  [MainWindow] Загрузка текущего пользователя...")
         self.current_user = None
         if get_user:
             try:
                 self.current_user = get_user(1)
-                print(f"  [MainWindow] Пользователь: {self.current_user.name if self.current_user else 'None'}")
+                _log.info("Текущий пользователь: %s", getattr(self.current_user, "name", None))
             except Exception as e:
-                print(f"  [MainWindow] Ошибка получения пользователя: {e}")
+                _log.warning("Ошибка получения пользователя: %s", e)
 
-        print("  [MainWindow] Инициализация сервисов...")
         self.notification_service = None
         if SmartNotifications and self.current_user:
             try:
                 self.notification_service = SmartNotifications(self.current_user.id)
-                print("  [MainWindow] SmartNotifications создан")
             except Exception as e:
-                print(f"  [MainWindow] Ошибка SmartNotifications: {e}")
+                _log.warning("SmartNotifications: %s", e)
 
         self.diets_service = None
         if SpecialDiets:
             try:
                 self.diets_service = SpecialDiets()
-                print("  [MainWindow] SpecialDiets создан")
             except Exception as e:
-                print(f"  [MainWindow] Ошибка SpecialDiets: {e}")
+                _log.warning("SpecialDiets: %s", e)
 
-        print("  [MainWindow] Вызов init_ui()...")
+        self._chat_shutdown_done = False
+        self._photo_ml_shutdown_done = False
+
+        self._setup_menu_bar()
         self.init_ui()
-        print("  [MainWindow] init_ui() завершён")
-        print("  [MainWindow] Вызов apply_styles()...")
         self.apply_styles()
-        print("  [MainWindow] apply_styles() завершён")
-        print("  [MainWindow] __init__ завершён успешно")
+        _log.debug("MainWindow: готов")
+
+    def _shutdown_chat_workers_once(self) -> None:
+        """Один раз при закрытии главного окна — до разрушения дочерних виджетов."""
+        if self._chat_shutdown_done:
+            return
+        self._chat_shutdown_done = True
+        try:
+            chat_page = self.pages.get(AIChatPage)
+            if chat_page is not None and hasattr(chat_page, "shutdown_background_threads"):
+                chat_page.shutdown_background_threads()
+        except Exception as e:
+            _log.warning("Остановка потоков чата при выходе: %s", e)
+
+    def _shutdown_photo_ml_once(self) -> None:
+        if self._photo_ml_shutdown_done:
+            return
+        self._photo_ml_shutdown_done = True
+        try:
+            photo_page = self.pages.get(PhotoAnalysisPage)
+            if photo_page is not None:
+                uploader = getattr(photo_page, "uploader", None)
+                if uploader is not None and hasattr(uploader, "release_ml_resources"):
+                    uploader.release_ml_resources()
+        except Exception as e:
+            _log.warning("Освобождение ML при выходе (фото): %s", e)
+
+    def _setup_menu_bar(self):
+        """Файл: выход; Справка: о программе и про регистрацию."""
+        from config.settings import APP_NAME, APP_VERSION
+
+        bar = QMenuBar(self)
+        self.setMenuBar(bar)
+
+        file_menu = bar.addMenu("Файл")
+        act_quit = QAction("Выход", self)
+        act_quit.setShortcut(QKeySequence.StandardKey.Quit)
+        # Не вызывать QApplication.quit() напрямую: тогда не приходит closeEvent,
+        # потоки чата (QThread) уничтожаются «на лету» → abort.
+        act_quit.triggered.connect(self.close)
+        file_menu.addAction(act_quit)
+
+        help_menu = bar.addMenu("Справка")
+        act_about = QAction("О программе…", self)
+        act_about.triggered.connect(self._show_about)
+        help_menu.addAction(act_about)
+        act_reg = QAction("Учётная запись…", self)
+        act_reg.triggered.connect(self._show_account_info)
+        help_menu.addAction(act_reg)
+
+    def _show_about(self):
+        from config.settings import APP_NAME, APP_VERSION
+        from PyQt6.QtWidgets import QMessageBox
+
+        from ui.components.dialogs import show_rich_message
+
+        show_rich_message(
+            self,
+            f"О {APP_NAME}",
+            f"<b>{APP_NAME}</b> v{APP_VERSION}<br><br>"
+            "Приложение для учёта питания и рекомендаций.<br><br>"
+            "© HealthAI Team",
+            QMessageBox.Icon.NoIcon,
+        )
+
+    def _show_account_info(self):
+        from PyQt6.QtWidgets import QMessageBox
+
+        from ui.components.dialogs import show_rich_message
+
+        show_rich_message(
+            self,
+            "Учётная запись",
+            "<b>Профиль</b><br>"
+            "Параметры (рост, вес, активность, цель) можно изменить в любой момент в боковом меню "
+            "«Профиль».<br><br>"
+            "<b>Первый запуск</b><br>"
+            "Мастер настройки заполняет ту же запись в локальной базе.<br><br>"
+            "<b>Выход</b><br>"
+            "«Файл» → «Выход» или Cmd+Q (macOS). Отдельного входа по паролю нет — один локальный пользователь.",
+            QMessageBox.Icon.Information,
+        )
 
     def init_ui(self):
-        print("    [init_ui] Начало")
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-        print("    [init_ui] Создание сайдбара...")
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
         sidebar.setFixedWidth(280)
@@ -142,13 +200,14 @@ class MainWindow(QMainWindow):
         self.nav_buttons = []
         pages = [
             ("📊 Дашборд", DashboardPage),
+            ("👤 Профиль", ProfilePage),
             ("🧮 Калькулятор", CalculatorPage),
             ("📔 Дневник", DiaryPage),
             ("📅 Планировщик", PlannerPage),
             ("🥗 Рецепты", RecipesPage),
             ("🍎 Продукты", ProductsPage),
             ("🤖 AI Нутрициолог", AIChatPage),
-            # ("📈 Аналитика", AnalyticsPage),  # временно отключено из-за проблем с matplotlib
+            ("📈 Аналитика", AnalyticsPage),
             ("📸 Фото еды", PhotoAnalysisPage),
             ("⚙️ Настройки", None)
         ]
@@ -186,43 +245,40 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        print("    [init_ui] Создание QStackedWidget...")
         self.stack = QStackedWidget()
         self.stack.setStyleSheet("background-color: transparent;")
 
-        print("    [init_ui] Добавление страниц...")
-        self.pages = {}
-        for _, page_class in self.nav_buttons:
-            if page_class:
-                print(f"      Создание {page_class.__name__}...")
-                try:
-                    page = page_class(main_window=self)
-                except TypeError:
-                    page = page_class()
-                except Exception as e:
-                    print(f"      Ошибка создания {page_class.__name__}: {e}")
-                    error_page = QLabel(f"Ошибка загрузки страницы: {e}")
-                    error_page.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    self.stack.addWidget(error_page)
-                    self.pages[page_class] = error_page
-                    continue
-                self.stack.addWidget(page)
-                self.pages[page_class] = page
-                print(f"      {page_class.__name__} добавлена")
+        # Ленивая загрузка: тяжёлые страницы (matplotlib, torch, AIEngine) создаются при первом входе,
+        # а не при старте — меньше конфликтов нативных библиотек с Qt на macOS.
+        self.pages: dict = {}
 
         main_layout.addWidget(sidebar)
         main_layout.addWidget(self.stack)
-        print("    [init_ui] Сайдбар и стек добавлены")
 
-        if DashboardPage in self.pages:
-            print("    [init_ui] Переход на дашборд")
-            self.navigate_to(DashboardPage)
+        self.navigate_to(DashboardPage)
 
-        print("    [init_ui] Конец")
+    def _ensure_page(self, page_class):
+        if page_class in self.pages:
+            return self.pages[page_class]
+        try:
+            try:
+                page = page_class(main_window=self)
+            except TypeError:
+                page = page_class()
+        except Exception as e:
+            _log.exception("Ошибка создания страницы %s", page_class.__name__)
+            err = QLabel(f"Ошибка загрузки страницы: {e}")
+            err.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.stack.addWidget(err)
+            self.pages[page_class] = err
+            return err
+        self.stack.addWidget(page)
+        self.pages[page_class] = page
+        _log.debug("Страница создана: %s", page_class.__name__)
+        return page
 
     def navigate_to(self, page_class):
-        if page_class not in self.pages:
-            return
+        page = self._ensure_page(page_class)
 
         for btn, _ in self.nav_buttons:
             btn.setChecked(False)
@@ -232,11 +288,9 @@ class MainWindow(QMainWindow):
                 btn.setChecked(True)
                 break
 
-        index = list(self.pages.keys()).index(page_class)
-        self.stack.setCurrentIndex(index)
+        self.stack.setCurrentIndex(self.stack.indexOf(page))
 
-        page = self.pages[page_class]
-        if hasattr(page, 'refresh') and callable(page.refresh):
+        if hasattr(page, "refresh") and callable(page.refresh):
             page.refresh()
 
     def update_calorie_display(self):
@@ -252,15 +306,55 @@ class MainWindow(QMainWindow):
                     page.refresh()
 
     def apply_styles(self):
-        self.setStyleSheet(Styles.get_stylesheet())
+        from ui.styles import (
+            Styles,
+            sync_config_colors_with_theme,
+            THEME_NAME,
+            apply_app_light_palette,
+            apply_app_dark_palette,
+        )
+
+        sync_config_colors_with_theme()
+        app = QApplication.instance()
+        if app:
+            if THEME_NAME == "light":
+                apply_app_light_palette(app)
+            else:
+                apply_app_dark_palette(app)
+            app.setStyleSheet(Styles.get_stylesheet())
+        self.setStyleSheet("")
 
     def closeEvent(self, event):
-        event.accept()
+        self._shutdown_chat_workers_once()
+        self._shutdown_photo_ml_once()
+        super().closeEvent(event)
 
 
 if __name__ == "__main__":
+    import os
+
+    # Запуск из корня проекта: python ui/main_window.py
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+    os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+
+    from core.app_logging import setup_logging
+    from core.qt_lifecycle import (
+        exit_after_qt_exec,
+        pyqt6_disable_sip_destroy_on_exit,
+        qt_safe_teardown,
+    )
+
+    setup_logging()
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
     app = QApplication(sys.argv)
+    pyqt6_disable_sip_destroy_on_exit()
     set_theme("light")
     window = MainWindow()
     window.show()
-    sys.exit(app.exec())
+    app.aboutToQuit.connect(qt_safe_teardown)
+    rc = app.exec()
+    exit_after_qt_exec(rc)

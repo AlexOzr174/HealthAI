@@ -117,12 +117,15 @@ class AIAnalyticsWidget(QWidget):
                 btn.setFixedWidth(100)
                 btn.setStyleSheet("""
                     QPushButton {
-                        background-color: #e0e0e0;
+                        background-color: #F5F5F5;
+                        color: #1a1a1a;
+                        border: 2px solid #424242;
                         border-radius: 5px;
                         padding: 8px;
+                        font-weight: 600;
                     }
                     QPushButton:hover {
-                        background-color: #d0d0d0;
+                        background-color: #EEEEEE;
                     }
                 """)
                 btn.clicked.connect(lambda checked, d=days: self.update_graph(d))
@@ -163,12 +166,14 @@ class AIAnalyticsWidget(QWidget):
         refresh_btn.setFixedHeight(50)
         refresh_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50;
-                color: white;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 10px;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #E8F5E9;
             }
         """)
         refresh_btn.clicked.connect(self.refresh_analytics)

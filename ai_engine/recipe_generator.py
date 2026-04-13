@@ -4,6 +4,7 @@ AI Recipe Generator - Генератор рецептов на основе ИИ
 """
 
 import random
+import re
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
@@ -123,8 +124,39 @@ class RecipeGenerator:
             restrictions = []
         if available_products is None:
             available_products = []
-        
-        # Выбор базового ингредиента
+
+        # Список от пользователя («что есть дома») — только эти продукты, без случайных из шаблонов
+        pantry = [p.strip() for p in available_products if p and str(p).strip()]
+        if pantry:
+            filtered_ingredients = self._filter_by_restrictions(pantry, restrictions)
+            if not filtered_ingredients:
+                return {
+                    "error": "С учётом ограничений диеты из вашего списка не осталось подходящих продуктов.",
+                }
+            recipe_name = self._generate_recipe_name(category, filtered_ingredients, preferences)
+            nutrition = self._calculate_nutrition(filtered_ingredients, category)
+            instructions = self._generate_instructions(category, filtered_ingredients, cooking_time, difficulty)
+            prep_time = random.randint(10, 20)
+            cook_time = max(cooking_time - prep_time, 5)
+            return {
+                "name": recipe_name,
+                "category": category,
+                "ingredients": filtered_ingredients,
+                "instructions": instructions,
+                "nutrition": nutrition,
+                "time": {
+                    "prep": prep_time,
+                    "cook": cook_time,
+                    "total": prep_time + cook_time,
+                },
+                "difficulty": difficulty,
+                "servings": random.randint(1, 4),
+                "cuisine_style": self._detect_cuisine_style(filtered_ingredients),
+                "tags": self._generate_tags(filtered_ingredients, category, restrictions),
+                "generated_at": datetime.now().isoformat(),
+            }
+
+        # Выбор базового ингредиента (шаблоны, если продукты пользователя не заданы)
         templates = self.recipe_templates.get(category, self.recipe_templates['lunch'])
         base = random.choice(templates['base_ingredients'])
         base_name = random.choice(base) if isinstance(base, list) else base
@@ -384,6 +416,32 @@ class RecipeGenerator:
         
         return weekly_plan
     
+    def generate_from_user_ingredients(
+        self,
+        user_input: str,
+        category: str = "lunch",
+        restrictions: Optional[List[str]] = None,
+        cooking_time: int = 30,
+        difficulty: str = "medium",
+    ) -> Dict:
+        """
+        Генерация рецепта из строки продуктов пользователя (через запятую, точку с запятой или перенос строки).
+        Список передаётся в generate_recipe(..., available_products=...).
+        """
+        if not user_input or not str(user_input).strip():
+            return {"error": "Укажите продукты"}
+        raw = re.split(r"[\n,;]+", user_input.strip())
+        products = [p.strip() for p in raw if p.strip()]
+        if not products:
+            return {"error": "Не удалось распознать продукты"}
+        return self.generate_recipe(
+            category=category,
+            restrictions=restrictions,
+            available_products=products,
+            cooking_time=cooking_time,
+            difficulty=difficulty,
+        )
+
     def suggest_substitutions(self, ingredient: str, restrictions: List[str] = None) -> List[str]:
         """Предложение замен для ингредиента"""
         substitutions_map = {

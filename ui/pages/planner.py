@@ -77,8 +77,9 @@ class PlannerPage(QWidget):
         prev_btn.setFixedSize(36, 36)
         prev_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['background']};
-                border: none;
+                background-color: {COLORS['surface']};
+                color: #1a1a1a;
+                border: 2px solid #2C3E50;
                 border-radius: 8px;
                 font-size: 16px;
             }}
@@ -101,8 +102,9 @@ class PlannerPage(QWidget):
         next_btn.setFixedSize(36, 36)
         next_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['background']};
-                border: none;
+                background-color: {COLORS['surface']};
+                color: #1a1a1a;
+                border: 2px solid #2C3E50;
                 border-radius: 8px;
                 font-size: 16px;
             }}
@@ -122,13 +124,14 @@ class PlannerPage(QWidget):
         auto_fill_btn = QPushButton("✨ Автозаполнение")
         auto_fill_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['secondary']};
-                color: white;
-                border: none;
+                background-color: #FFF3E0;
+                color: #1a1a1a;
+                border: 2px solid #E65100;
                 border-radius: 8px;
                 padding: 8px 16px;
+                font-weight: 600;
             }}
-            QPushButton:hover {{ background-color: #F4511E; }}
+            QPushButton:hover {{ background-color: #FFE0B2; }}
         """)
         auto_fill_btn.clicked.connect(self.auto_fill_week)
         layout.addWidget(auto_fill_btn)
@@ -137,13 +140,14 @@ class PlannerPage(QWidget):
         save_btn = QPushButton("💾 Сохранить")
         save_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['primary']};
-                color: white;
-                border: none;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 8px;
                 padding: 8px 16px;
+                font-weight: 600;
             }}
-            QPushButton:hover {{ background-color: {COLORS['primary_hover']}; }}
+            QPushButton:hover {{ background-color: #F0F2F5; }}
         """)
         save_btn.clicked.connect(self.save_plan)
         layout.addWidget(save_btn)
@@ -276,13 +280,14 @@ class PlannerPage(QWidget):
         add_btn.setFixedSize(18, 18)
         add_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['primary']};
-                color: white;
-                border: none;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #2C3E50;
                 border-radius: 4px;
                 font-size: 12px;
+                font-weight: bold;
             }}
-            QPushButton:hover {{ background-color: {COLORS['primary_hover']}; }}
+            QPushButton:hover {{ background-color: #F0F2F5; }}
         """)
         add_btn.clicked.connect(lambda: self.add_meal_to_day(day_num, meal_type))
         layout.addWidget(add_btn)
@@ -340,10 +345,12 @@ class PlannerPage(QWidget):
         export_btn = QPushButton("📄 Экспорт в файл")
         export_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['background']};
-                border: 1px solid {COLORS['border']};
+                background-color: {COLORS['surface']};
+                color: #1a1a1a;
+                border: 2px solid #2C3E50;
                 border-radius: 8px;
                 padding: 8px;
+                font-weight: 600;
             }}
             QPushButton:hover {{ background-color: {COLORS['border']}; }}
         """)

@@ -1,11 +1,92 @@
 """
 Виджет загрузки и анализа фото еды
 """
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
-                             QLabel, QFileDialog, QFrame, QScrollArea, QGraphicsDropShadowEffect)
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+                             QLabel, QFrame, QScrollArea, QGraphicsDropShadowEffect, QTextEdit)
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QPixmap, QFont, QIcon
+from PyQt6.QtGui import QPixmap, QFont, QIcon, QColor
+
+from typing import Optional
+
+from core.config import get_food_model_path
+from core.food_display_ru import food_name_ru
+from core.food_recognition import FoodImageRecognizer
+from ai_engine.llm_chat_backend import LLMChatBackend
+from ui.file_dialog_utils import get_open_image_path
 from ui.styles import CURRENT_THEME
+
+try:
+    from utils.chat_text_sanitize import sanitize_assistant_markdown
+except ImportError:
+    def sanitize_assistant_markdown(t: str) -> str:
+        return t
+
+
+def _recognition_to_ui_results(recognizer: FoodImageRecognizer, image_path: str) -> dict:
+    """Преобразует вывод FoodImageRecognizer в формат виджета результатов."""
+    raw = recognizer.recognize_food(image_path, top_k=5)
+    if raw and raw[0].get('error'):
+        msg = raw[0].get('message', raw[0].get('error', 'Неизвестная ошибка'))
+        return {
+            'products': [{
+                'name': msg,
+                'confidence': 0.0,
+                'calories': 0,
+                'macros': {'protein': 0, 'fat': 0, 'carbs': 0},
+            }],
+            'total_calories': 0,
+            'total_macros': {'protein': 0, 'fat': 0, 'carbs': 0},
+            'source': 'error',
+        }
+
+    products = []
+    total_cal = 0
+    tot_p = tot_f = tot_c = 0.0
+    for r in raw:
+        if 'error' in r:
+            continue
+        fc = str(r.get("food_class", "unknown"))
+        imagenet = (r.get("imagenet_label") or "").strip()
+        # Для Ollama — сырой английский текст ImageNet; иначе внутренний ключ как текст
+        label_en = imagenet if imagenet else fc.replace("_", " ")
+        name = food_name_ru(fc)
+        conf = float(r.get('confidence', 0))
+        tn = r.get('total_nutrition') or {}
+        cal = int(tn.get('calories', 0))
+        p = float(tn.get('protein', 0))
+        f = float(tn.get('fat', 0))
+        c = float(tn.get('carbs', 0))
+        products.append({
+            'name': name,
+            'label_en': label_en,
+            'food_class': fc,
+            'confidence': conf,
+            'calories': cal,
+            'macros': {'protein': p, 'fat': f, 'carbs': c},
+        })
+        total_cal += cal
+        tot_p += p
+        tot_f += f
+        tot_c += c
+
+    if not products:
+        return {
+            'products': [{
+                'name': 'Модель не вернула классы с достаточной уверенностью.',
+                'confidence': 0.0,
+                'calories': 0,
+                'macros': {'protein': 0, 'fat': 0, 'carbs': 0},
+            }],
+            'total_calories': 0,
+            'total_macros': {'protein': 0, 'fat': 0, 'carbs': 0},
+            'source': 'empty',
+        }
+    return {
+        'products': products,
+        'total_calories': total_cal,
+        'total_macros': {'protein': tot_p, 'fat': tot_f, 'carbs': tot_c},
+        'source': 'model',
+    }
 
 
 class FoodAnalysisResultWidget(QFrame):
@@ -32,7 +113,7 @@ class FoodAnalysisResultWidget(QFrame):
         shadow.setBlurRadius(15)
         shadow.setXOffset(3)
         shadow.setYOffset(3)
-        shadow.setColor(Qt.GlobalColor.black)
+        shadow.setColor(QColor(0, 0, 0, 90))
         self.setGraphicsEffect(shadow)
         
         layout = QVBoxLayout(self)
@@ -120,10 +201,28 @@ class PhotoUploadWidget(QWidget):
     
     photo_analyzed = pyqtSignal(dict)  # Сигнал с результатами анализа
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, main_window=None):
         super().__init__(parent)
+        self.main_window = main_window
         self.current_image_path = None
+        self._food_model_path = get_food_model_path()
+        self._recognizer: Optional[FoodImageRecognizer] = None
+        self._llm = LLMChatBackend()
         self.init_ui()
+
+    def _get_recognizer(self) -> FoodImageRecognizer:
+        if self._recognizer is None:
+            self._recognizer = FoodImageRecognizer(model_path=self._food_model_path)
+        return self._recognizer
+
+    def _profile_context(self) -> str:
+        if not self.main_window or not getattr(self.main_window, "current_user", None):
+            return ""
+        u = self.main_window.current_user
+        return (
+            f"цель={getattr(u, 'goal', '')}; вес={getattr(u, 'weight', '')}; "
+            f"рост={getattr(u, 'height', '')}; возраст={getattr(u, 'age', '')}"
+        )
         
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -183,16 +282,16 @@ class PhotoUploadWidget(QWidget):
         upload_button.setCursor(Qt.CursorShape.PointingHandCursor)
         upload_button.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 25px;
                 padding: 12px 30px;
                 font-size: 15px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #E8F5E9;
             }
         """)
         upload_button.clicked.connect(self.select_photo)
@@ -215,22 +314,23 @@ class PhotoUploadWidget(QWidget):
         self.analyze_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.analyze_button.setStyleSheet("""
             QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 25px;
                 padding: 15px 40px;
                 font-size: 16px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #1976D2;
+                background-color: #E3F2FD;
             }
             QPushButton:disabled {
-                background-color: %s;
-                color: %s;
+                background-color: #EEEEEE;
+                color: #616161;
+                border: 2px solid #9E9E9E;
             }
-        """ % (CURRENT_THEME['border'], CURRENT_THEME['text_secondary']))
+        """)
         self.analyze_button.setEnabled(False)
         self.analyze_button.clicked.connect(self.analyze_photo)
         self.analyze_button.hide()
@@ -257,12 +357,7 @@ class PhotoUploadWidget(QWidget):
         
     def select_photo(self):
         """Выбрать фото через диалог"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Выберите фото еды",
-            "",
-            "Images (*.png *.xpm *.jpg *.jpeg *.bmp)"
-        )
+        file_path = get_open_image_path(self, "Выберите фото еды")
         
         if file_path:
             self.load_photo(file_path)
@@ -291,39 +386,34 @@ class PhotoUploadWidget(QWidget):
         self.upload_area.hide()
         
     def analyze_photo(self):
-        """Анализировать фото (симуляция)"""
+        """Анализ фото через загруженную модель TensorFlow/Keras."""
         self.analyze_button.setEnabled(False)
         self.analyze_button.setText("⏳ Анализ...")
         
-        # TODO: Интеграция с реальной ML моделью
-        # Симуляция результатов
-        simulated_results = {
-            'products': [
-                {
-                    'name': 'Греческий салат',
-                    'confidence': 0.92,
-                    'calories': 320,
-                    'macros': {'protein': 12.5, 'fat': 24.0, 'carbs': 8.5}
-                },
-                {
-                    'name': 'Куриная грудка',
-                    'confidence': 0.87,
-                    'calories': 165,
-                    'macros': {'protein': 31.0, 'fat': 3.6, 'carbs': 0}
-                }
-            ],
-            'total_calories': 485,
-            'total_macros': {'protein': 43.5, 'fat': 27.6, 'carbs': 8.5}
-        }
-        
-        # Отобразить результаты
-        self.display_results(simulated_results)
-        
+        if not self.current_image_path:
+            self.analyze_button.setEnabled(True)
+            self.analyze_button.setText("🔍 Проанализировать")
+            return
+
+        results = _recognition_to_ui_results(self._get_recognizer(), self.current_image_path)
+        if results.get("source") == "model":
+            label_entries: list[tuple[str, str]] = []
+            for p in results.get("products", []):
+                le = (p.get("label_en") or "").strip()
+                fc = (p.get("food_class") or "unknown").strip()
+                en = le if le else fc.replace("_", " ")
+                label_entries.append((en, fc))
+            ru_names = self._llm.translate_food_labels_to_ru(label_entries)
+            if ru_names and len(ru_names) == len(results["products"]):
+                for p, ru in zip(results["products"], ru_names):
+                    p["name"] = ru
+        results["narration"] = self._llm.narrate_photo_analysis(results, self._profile_context())
+        self.display_results(results)
+
         self.analyze_button.setEnabled(True)
         self.analyze_button.setText("🔍 Проанализировать снова")
-        
-        # Отправить сигнал
-        self.photo_analyzed.emit(simulated_results)
+
+        self.photo_analyzed.emit(results)
         
     def display_results(self, results: dict):
         """Отобразить результаты анализа"""
@@ -352,10 +442,41 @@ class PhotoUploadWidget(QWidget):
                 product['macros']
             )
             self.results_layout.addWidget(result_widget)
-        
+
+        narr = results.get("narration") or ""
+        if narr.strip():
+            cap = QLabel("💬 Разбор фото (Markdown; Ollama — что на снимке, калории и советы)")
+            cap.setWordWrap(True)
+            cap.setStyleSheet(
+                "font-size: 14px; font-weight: bold; color: %s;" % CURRENT_THEME["text_primary"]
+            )
+            self.results_layout.addWidget(cap)
+            self.narration_edit = QTextEdit()
+            self.narration_edit.setReadOnly(True)
+            self.narration_edit.setFrameShape(QFrame.Shape.NoFrame)
+            self.narration_edit.document().setDocumentMargin(8)
+            self.narration_edit.setMarkdown(
+                sanitize_assistant_markdown(narr)
+            )
+            self.narration_edit.setMinimumHeight(220)
+            self.narration_edit.setStyleSheet(
+                "background-color: %s; border: 1px solid %s; border-radius: 8px; padding: 8px;"
+                % (CURRENT_THEME["input_bg"], CURRENT_THEME["border"])
+            )
+            self.results_layout.addWidget(self.narration_edit)
+
         self.results_layout.addStretch()
         self.results_scroll.show()
         
+    def release_ml_resources(self) -> None:
+        """Освободить ResNet/TF до закрытия главного окна."""
+        if self._recognizer is not None:
+            try:
+                self._recognizer.release_native_models()
+            except Exception:
+                pass
+            self._recognizer = None
+
     def reset(self):
         """Сбросить виджет"""
         self.current_image_path = None

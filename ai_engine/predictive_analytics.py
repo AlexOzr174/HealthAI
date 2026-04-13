@@ -513,6 +513,49 @@ class PredictiveAnalytics:
         
         return insights
 
+    def forecast_from_calorie_balance(
+        self,
+        target_calories_per_day: float,
+        avg_daily_intake: float,
+        current_weight_kg: float,
+        horizon_days: int = 7,
+    ) -> Dict:
+        """
+        Упрощённый прогноз изменения веса при стабильном среднем потреблении за horizon_days.
+        Правило: ~7700 ккал ≈ 1 кг жировой массы (грубая оценка, как в predict_goal_achievement).
+        Положительный «баланс» = съели меньше цели → ожидается снижение веса.
+        """
+        try:
+            tgt = float(target_calories_per_day)
+            avg = float(avg_daily_intake)
+            w = float(current_weight_kg)
+            h = max(int(horizon_days), 1)
+        except (TypeError, ValueError):
+            return {"status": "error", "message": "Некорректные числовые параметры"}
+
+        daily_balance = tgt - avg
+        total_kcal = daily_balance * h
+        delta_kg = total_kcal / 7700.0
+        projected = w - delta_kg
+
+        if abs(daily_balance) < 15:
+            trend = "стабильный вес (баланс около нуля)"
+        elif daily_balance > 0:
+            trend = "дефицит относительно цели — ожидается снижение веса"
+        else:
+            trend = "профицит относительно цели — ожидается рост веса"
+
+        return {
+            "status": "success",
+            "horizon_days": h,
+            "daily_balance_kcal": round(daily_balance, 0),
+            "total_balance_kcal": round(total_kcal, 0),
+            "estimated_delta_kg": round(delta_kg, 2),
+            "projected_weight_kg": round(projected, 2),
+            "trend_hint": trend,
+            "disclaimer": "Оценка упрощённая: не учитывает воду, нагрузки, гормоны; не медицинский прогноз.",
+        }
+
 
 # Экспорт класса
 __all__ = ['PredictiveAnalytics']

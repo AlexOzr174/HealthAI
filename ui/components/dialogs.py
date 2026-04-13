@@ -5,6 +5,86 @@ from PyQt6.QtWidgets import (QDialog, QDialogButtonBox, QVBoxLayout, QHBoxLayout
                              QListWidget, QListWidgetItem, QFrame, QMessageBox,
                              QGridLayout, QDoubleSpinBox)
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QPalette
+
+
+def _apply_msgbox_contrast(msg: QMessageBox) -> None:
+    """Фикс контраста: Qt иногда красит текст предупреждений тёмно-красным на тёмном фоне."""
+    msg.setTextFormat(Qt.TextFormat.PlainText)
+
+
+class StyledMessageBox(QMessageBox):
+    """
+    QMessageBox с явным светлым/тёмным оформлением: на macOS глобальный QSS иногда не
+    подхватывается, из‑за чего остаётся тёмный фон и тёмный текст.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+    def apply_readable_style(self) -> None:
+        try:
+            from ui.styles import THEME_NAME
+        except ImportError:
+            THEME_NAME = "light"
+        dark = THEME_NAME == "dark"
+        bg = QColor("#2E2E2E") if dark else QColor("#FFFFFF")
+        fg = QColor("#ECEFF1") if dark else QColor("#1a1a1a")
+        btn_face = QColor("#B3E5FC") if dark else QColor("#E8EDF2")
+
+        pal = self.palette()
+        pal.setColor(QPalette.ColorRole.Window, bg)
+        pal.setColor(QPalette.ColorRole.Base, bg)
+        pal.setColor(QPalette.ColorRole.WindowText, fg)
+        pal.setColor(QPalette.ColorRole.Text, fg)
+        pal.setColor(QPalette.ColorRole.Button, btn_face)
+        pal.setColor(QPalette.ColorRole.ButtonText, QColor("#1a1a1a"))
+        self.setPalette(pal)
+
+        qss_bg = bg.name()
+        qss_fg = fg.name()
+        qss_btn = btn_face.name()
+        self.setStyleSheet(
+            f"""
+            QMessageBox {{ background-color: {qss_bg}; }}
+            QMessageBox QLabel {{ color: {qss_fg}; background-color: {qss_bg}; }}
+            QMessageBox QPushButton {{
+                color: #1a1a1a;
+                background-color: {qss_btn};
+                border: 2px solid #34495e;
+                border-radius: 8px;
+                min-width: 100px;
+                min-height: 36px;
+                padding: 6px 16px;
+                font-weight: 600;
+            }}
+            QMessageBox QPushButton:hover {{ background-color: #D6EAF8; }}
+            QMessageBox QPushButton:pressed {{ padding-top: 8px; padding-bottom: 4px; }}
+            """
+        )
+
+        for lab in self.findChildren(QLabel):
+            lab.setAutoFillBackground(True)
+            lab.setPalette(pal)
+            lab.setForegroundRole(QPalette.ColorRole.WindowText)
+            lab.setStyleSheet(f"color: {qss_fg}; background-color: {qss_bg};")
+
+        for btn in self.findChildren(QPushButton):
+            btn.setPalette(pal)
+            btn.setStyleSheet(
+                f"color: #1a1a1a; background-color: {qss_btn}; border: 2px solid #2C3E50; "
+                "border-radius: 8px; min-height: 34px; padding: 6px 16px; font-weight: 600;"
+            )
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.apply_readable_style()
+
+    def exec(self) -> int:
+        self.apply_readable_style()
+        ret = super().exec()
+        return ret
 
 # Импорт конфигурации с fallback
 try:
@@ -36,10 +116,15 @@ from database.operations import save_user, get_user
 from database.models import Recipe
 from core.pezvner import PevznerDiets
 
+from ui.dialog_chrome import STANDARD_LIGHT_FORM_DIALOG_QSS, apply_light_dialog_chrome
+
+from ui.components.press_feedback import attach_press_flash
+
 
 def show_message(parent, title: str, text: str):
     """Показать информационное сообщение"""
-    msg = QMessageBox(parent)
+    msg = StyledMessageBox(parent)
+    _apply_msgbox_contrast(msg)
     msg.setIcon(QMessageBox.Icon.Information)
     msg.setWindowTitle(title)
     msg.setText(text)
@@ -48,10 +133,36 @@ def show_message(parent, title: str, text: str):
 
 def show_error(parent, title: str, text: str):
     """Показать сообщение об ошибке"""
-    msg = QMessageBox(parent)
+    msg = StyledMessageBox(parent)
+    _apply_msgbox_contrast(msg)
     msg.setIcon(QMessageBox.Icon.Critical)
     msg.setWindowTitle(title)
     msg.setText(text)
+    msg.exec()
+
+
+def show_warning(parent, title: str, text: str):
+    """Предупреждение с читаемым текстом (без «невидимого» красного на тёмном фоне)."""
+    msg = StyledMessageBox(parent)
+    _apply_msgbox_contrast(msg)
+    msg.setIcon(QMessageBox.Icon.Warning)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    msg.exec()
+
+
+def show_rich_message(
+    parent,
+    title: str,
+    html: str,
+    icon: QMessageBox.Icon = QMessageBox.Icon.Information,
+) -> None:
+    """Сообщение с разметкой RichText (как «О программе»), в том же StyledMessageBox."""
+    msg = StyledMessageBox(parent)
+    msg.setTextFormat(Qt.TextFormat.RichText)
+    msg.setIcon(icon)
+    msg.setWindowTitle(title)
+    msg.setText(html)
     msg.exec()
 
 
@@ -60,6 +171,7 @@ class SettingsDialog(QDialog):
 
     def __init__(self, user, parent=None):
         super().__init__(parent)
+        apply_light_dialog_chrome(self)
         self.user = user
         self.setWindowTitle("Настройки профиля")
         self.setMinimumWidth(400)
@@ -124,14 +236,15 @@ class SettingsDialog(QDialog):
         cancel_btn = QPushButton("Отмена")
         cancel_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['border']};
-                color: {COLORS['text_primary']};
-                border: none;
+                background-color: {COLORS['surface']};
+                color: #1a1a1a;
+                border: 2px solid #2C3E50;
                 border-radius: 8px;
                 padding: 10px 24px;
                 min-width: 100px;
+                font-weight: 600;
             }}
-            QPushButton:hover {{ background-color: {COLORS['text_hint']}; }}
+            QPushButton:hover {{ background-color: {COLORS['border']}; }}
         """)
         cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(cancel_btn)
@@ -139,19 +252,24 @@ class SettingsDialog(QDialog):
         ok_btn = QPushButton("OK")
         ok_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['primary']};
-                color: white;
-                border: none;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 8px;
                 padding: 10px 24px;
                 min-width: 100px;
+                font-weight: 600;
             }}
-            QPushButton:hover {{ background-color: {COLORS['primary_hover']}; }}
+            QPushButton:hover {{ background-color: #F0F2F5; }}
         """)
         ok_btn.clicked.connect(self.save_settings)
         button_layout.addWidget(ok_btn)
 
         layout.addLayout(button_layout)
+
+        attach_press_flash(cancel_btn)
+        attach_press_flash(ok_btn)
+        self.setStyleSheet(STANDARD_LIGHT_FORM_DIALOG_QSS)
 
     def save_settings(self):
         """Сохранение настроек"""
@@ -187,6 +305,7 @@ class RecipeSelectionDialog(QDialog):
 
     def __init__(self, diet_type: str = None, parent=None):
         super().__init__(parent)
+        apply_light_dialog_chrome(self)
         self.diet_type = diet_type
         self.selected_recipe = None
         self.setWindowTitle("Выберите блюдо")
@@ -222,8 +341,10 @@ class RecipeSelectionDialog(QDialog):
         self.recipe_info.setStyleSheet(f"""
             font-size: 14px;
             padding: 12px;
-            background-color: {COLORS['background']};
+            background-color: {COLORS['surface']};
             border-radius: 8px;
+            border: 1px solid {COLORS['border']};
+            color: {COLORS['text_primary']};
         """)
         layout.addWidget(self.recipe_info)
 
@@ -234,6 +355,10 @@ class RecipeSelectionDialog(QDialog):
         buttons.accepted.connect(self.accept_selection)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+        for btn in buttons.findChildren(QPushButton):
+            attach_press_flash(btn)
+        self.setStyleSheet(STANDARD_LIGHT_FORM_DIALOG_QSS)
 
         self.load_recipes()
 

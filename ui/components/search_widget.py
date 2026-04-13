@@ -6,6 +6,7 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from config.settings import COLORS
+from ui.dialog_chrome import apply_light_dialog_chrome, light_dialog_palette
 from ui.styles import get_stylesheet
 
 
@@ -67,15 +68,15 @@ class SmartSearchWidget(QWidget):
         self.clear_button.setFixedSize(32, 32)
         self.clear_button.setStyleSheet("""
             QPushButton {
-                background-color: transparent;
-                border: none;
+                background-color: #FAFAFA;
+                border: 2px solid #616161;
                 border-radius: 16px;
-                color: #9E9E9E;
+                color: #1a1a1a;
                 font-size: 14px;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #F5F7FA;
-                color: #212121;
+                background-color: #EEEEEE;
             }
         """)
         self.clear_button.clicked.connect(self.clear_search)
@@ -86,15 +87,15 @@ class SmartSearchWidget(QWidget):
         self.search_button = QPushButton("Найти")
         self.search_button.setStyleSheet("""
             QPushButton {
-                background-color: #2E7D32;
-                color: white;
-                border: none;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 20px;
                 padding: 10px 20px;
                 font-weight: 600;
             }
             QPushButton:hover {
-                background-color: #388E3C;
+                background-color: #E8F5E9;
             }
         """)
         self.search_button.clicked.connect(self.on_search_triggered)
@@ -106,24 +107,28 @@ class SmartSearchWidget(QWidget):
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setMaxVisibleItems(10)
         
-        # Стиль для выпадающего списка
-        self.completer.popup().setStyleSheet("""
+        # Выпадающий список: QSS + светлая палитра (иначе на macOS в тёмной системе — тёмный фон/текст)
+        popup = self.completer.popup()
+        popup.setPalette(light_dialog_palette())
+        popup.setStyleSheet("""
             QListView {
-                background-color: white;
-                border: 1px solid #E0E0E0;
+                background-color: #FFFFFF;
+                color: #2C3E50;
+                border: 1px solid #BDC3C7;
                 border-radius: 8px;
                 padding: 4px;
             }
             QListView::item {
                 padding: 8px 12px;
                 border-radius: 4px;
+                color: #2C3E50;
             }
             QListView::item:selected {
-                background-color: #81C784;
-                color: white;
+                background-color: #D6EAF8;
+                color: #1a1a1a;
             }
             QListView::item:hover {
-                background-color: #E8F5E9;
+                background-color: #EBF5FB;
             }
         """)
         
@@ -198,6 +203,7 @@ class SearchSuggestionsPopup(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.Popup)
+        apply_light_dialog_chrome(self)
         self.setup_ui()
         
     def setup_ui(self):
@@ -219,17 +225,20 @@ class SearchSuggestionsPopup(QFrame):
             QListWidget {
                 border: none;
                 outline: none;
+                background-color: #FFFFFF;
+                color: #2C3E50;
             }
             QListWidget::item {
                 padding: 8px 12px;
                 border-radius: 4px;
+                color: #2C3E50;
             }
             QListWidget::item:selected {
-                background-color: #81C784;
-                color: white;
+                background-color: #D6EAF8;
+                color: #1a1a1a;
             }
             QListWidget::item:hover {
-                background-color: #E8F5E9;
+                background-color: #EBF5FB;
             }
         """)
         self.suggestions_list.itemClicked.connect(self.on_item_clicked)

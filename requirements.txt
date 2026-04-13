@@ -1,34 +1,41 @@
-# HealthAI - Умный гид по здоровому питанию
-# Dependencies for the application
-# Важно: версии совместимы с Python 3.12
+# HealthAI — зависимости приложения
+# Python: 3.10–3.13 (проверено с 3.12)
+#
+# Установка: pip install -r requirements.txt
+# Тесты:     pip install -r requirements-dev.txt
+# TensorFlow (только Keras .h5): pip install -r requirements-optional-tf.txt
 
-# GUI Framework
+# Инструменты сборки: без жёсткого апгрейда до setuptools 80+ (частые ошибки при установке колёс)
+setuptools>=69.5,<76
+wheel>=0.41
+
+# --- GUI ---
 PyQt6==6.5.0
 
-# Database
-sqlalchemy>=2.0.36
+# --- База данных ---
+sqlalchemy==2.0.36
 
-# Data Processing - pandas 2.2+ поддерживает Python 3.13
+# --- Данные и числа ---
 pandas==2.2.3
-numpy==2.2.1
+numpy>=1.26.4,<3
 
-# Visualization
+# --- Графики (страница аналитики; matplotlib.use в ui/pages/analytics.py) ---
 matplotlib==3.9.2
 
-# Machine Learning (for recommendation system)
+# --- ML / рекомендации (ai_engine/predictive_analytics, ml/) ---
 scikit-learn==1.5.2
 
-# Configuration
-PyYAML==6.0.2
+# --- HTTP, PDF, изображения ---
+requests==2.31.0
+Pillow==10.3.0
+reportlab==4.0.7
 
-# For JSON handling
-orjson==3.10.12
+# --- Локальные модели: models/vision (PyTorch ResNet и др.) ---
+# torchvision нужен для ResNet в core/food_recognition.py при resnet50.pth
+torch>=2.1.0,<3
+torchvision>=0.16.0
 
-pyqt6-sip==13.5.0
-pyqt6-qt6==6.5.0
+# TensorFlow не включён по умолчанию (тяжёлый, часто конфликтует со setuptools).
+# Нужен только для Keras .h5 в models/vision — см. requirements-optional-tf.txt
 
-# Дополнительные зависимости
-reportlab>=4.0.0
-requests>=2.31.0
-Pillow>=10.0.0
-# tensorflow>=2.13.0  # раскомментируйте при необходимости
+# Тесты: pip install -r requirements-dev.txt

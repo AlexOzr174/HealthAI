@@ -19,6 +19,8 @@ class User(Base):
     activity_level = Column(String(20), nullable=False)
     goal = Column(String(20), nullable=False)  # 'lose', 'maintain', 'gain'
     diet_type = Column(String(50), nullable=True)  # 'pevzner_1' - 'pevzner_15' или None
+    # JSON: {"active_diets": ["keto", "if"], "if_window": 8} — спец. диеты (кето, палео, ИФ и т.д.)
+    special_diets_json = Column(Text, nullable=True)
     bmr = Column(Float, nullable=False)  # Базальный метаболизм
     tdee = Column(Float, nullable=False)  # Суточная норма калорий
     target_calories = Column(Float, nullable=False)  # Целевые калории с учётом цели
@@ -32,6 +34,11 @@ class User(Base):
     # Связи
     meals = relationship("Meal", back_populates="user", order_by="Meal.meal_time")
     achievements = relationship("UserAchievement", back_populates="user")
+    chat_messages = relationship(
+        "ChatMessage",
+        back_populates="user",
+        order_by="ChatMessage.created_at",
+    )
 
     def to_dict(self):
         return {
@@ -192,6 +199,20 @@ class Achievement(Base):
             'xp_reward': self.xp_reward,
             'category': self.category,
         }
+
+
+class ChatMessage(Base):
+    """Сообщения чата с AI (память диалога для Ollama и контекста)."""
+
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role = Column(String(20), nullable=False)  # 'user' | 'assistant'
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    user = relationship("User", back_populates="chat_messages")
 
 
 class UserAchievement(Base):

@@ -1,5 +1,5 @@
 # ui/pages/photo_analysis.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QFrame
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt
 
 try:
@@ -14,9 +14,8 @@ except ImportError:
         'border': '#BDC3C7',
     }
 
-
 class PhotoAnalysisPage(QWidget):
-    """Страница анализа фото еды"""
+    """Страница анализа фото еды — виджет загрузки и распознавания."""
 
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
@@ -25,54 +24,25 @@ class PhotoAnalysisPage(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(20)
-        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
 
-        # Заголовок
         title = QLabel("📸 Анализ фото еды")
         title.setObjectName("titleLabel")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
-        subtitle = QLabel("Загрузите фото блюда для автоматического определения состава и калорийности")
-        subtitle.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 14px;")
+        subtitle = QLabel(
+            "Загрузите фото: ResNet50 + ImageNet. Названия в карточках — на русском "
+            "(словарь приложения; при включённой Ollama уточняются по англ. подписи классификатора). "
+            "Развёрнутый разбор — через Ollama."
+        )
+        subtitle.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 13px;")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
 
-        # Область загрузки
-        upload_area = QFrame()
-        upload_area.setObjectName("card")
-        upload_area.setMinimumHeight(300)
-        upload_area.setStyleSheet(f"""
-            QFrame#card {{
-                border: 2px dashed {COLORS['border']};
-                border-radius: 12px;
-                background-color: {COLORS['surface']};
-            }}
-        """)
+        from ui.widgets.photo_upload import PhotoUploadWidget
 
-        area_layout = QVBoxLayout(upload_area)
-        area_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        icon_label = QLabel("📷")
-        icon_label.setStyleSheet("font-size: 48px;")
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        area_layout.addWidget(icon_label)
-
-        text_label = QLabel("Перетащите фото сюда\nили нажмите кнопку ниже")
-        text_label.setStyleSheet(f"font-size: 16px; color: {COLORS['text_secondary']};")
-        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        area_layout.addWidget(text_label)
-
-        upload_btn = QPushButton("📁 Выбрать фото")
-        upload_btn.setObjectName("primaryBtn")
-        upload_btn.setFixedWidth(200)
-        upload_btn.clicked.connect(self.upload_photo)
-        area_layout.addWidget(upload_btn)
-
-        layout.addWidget(upload_area)
-        layout.addStretch()
-
-    def upload_photo(self):
-        """Загрузка и анализ фото (заглушка)"""
-        print("Функция загрузки фото будет реализована в следующей версии")
+        self.uploader = PhotoUploadWidget(self, main_window=self.main_window)
+        layout.addWidget(self.uploader, 1)

@@ -3,7 +3,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QFrame, QPushButton, QLineEdit, QComboBox,
                              QListWidget, QListWidgetItem, QGridLayout,
-                             QScrollArea, QSpacerItem, QSizePolicy)
+                             QScrollArea, QSpacerItem, QSizePolicy, QTextEdit)
 from PyQt6.QtCore import Qt
 
 try:
@@ -19,6 +19,7 @@ except ImportError:
 from database.operations import (get_all_recipes, get_recipes_by_diet,
                                  search_recipes, get_user)
 from database.models import Recipe
+from ai_engine.recipe_generator import RecipeGenerator
 
 
 class RecipeCard(QFrame):
@@ -128,6 +129,7 @@ class RecipesPage(QWidget):
     def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
         self.main_window = main_window  # <-- ВАЖНО: сохраняем ссылку
+        self._recipe_gen = RecipeGenerator()
         self.setup_ui()
 
     def setup_ui(self):
@@ -137,6 +139,9 @@ class RecipesPage(QWidget):
 
         search_frame = self.create_search_panel()
         layout.addWidget(search_frame)
+
+        gen_frame = self.create_generate_panel()
+        layout.addWidget(gen_frame)
 
         recipes_frame = self.create_recipes_grid()
         layout.addWidget(recipes_frame, stretch=1)
@@ -188,6 +193,118 @@ class RecipesPage(QWidget):
         layout.addWidget(reset_btn)
 
         return frame
+
+    def create_generate_panel(self) -> QFrame:
+        frame = QFrame()
+        frame.setStyleSheet(
+            f"background-color: {COLORS['surface']}; border-radius: 12px; padding: 16px;"
+        )
+        outer = QVBoxLayout(frame)
+        outer.setSpacing(10)
+
+        title = QLabel("🧑‍🍳 Рецепт из ваших продуктов")
+        title.setStyleSheet(
+            f"font-size: 15px; font-weight: bold; color: {COLORS['text_primary']};"
+        )
+        outer.addWidget(title)
+
+        hint = QLabel(
+            "Перечислите продукты через запятую или с новой строки — генератор подстроит шаблон под них."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet(f"font-size: 12px; color: {COLORS['text_secondary']};")
+        outer.addWidget(hint)
+
+        self.gen_ingredients = QTextEdit()
+        self.gen_ingredients.setPlaceholderText("например: курица, брокколи, рис, соевый соус")
+        self.gen_ingredients.setMaximumHeight(72)
+        self.gen_ingredients.setStyleSheet(
+            f"border: 1px solid {COLORS['border']}; border-radius: 8px; padding: 8px;"
+        )
+        outer.addWidget(self.gen_ingredients)
+
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Приём пищи:"))
+        self.gen_category = QComboBox()
+        for cat_name, cat_id in [
+            ("🌅 Завтрак", "breakfast"),
+            ("☀️ Обед", "lunch"),
+            ("🌙 Ужин", "dinner"),
+            ("🍪 Перекус", "snack"),
+        ]:
+            self.gen_category.addItem(cat_name, cat_id)
+        row.addWidget(self.gen_category)
+
+        gen_btn = QPushButton("Сгенерировать рецепт")
+        gen_btn.setStyleSheet(
+            f"background-color: #FFFFFF; color: #1a1a1a; border: 2px solid #1a1a1a; "
+            f"border-radius: 8px; padding: 8px 16px; font-weight: bold;"
+        )
+        gen_btn.clicked.connect(self.on_generate_from_ingredients)
+        row.addWidget(gen_btn)
+        row.addStretch()
+        outer.addLayout(row)
+
+        self.gen_result = QTextEdit()
+        self.gen_result.setReadOnly(True)
+        self.gen_result.setPlaceholderText("Здесь появится сгенерированный рецепт…")
+        self.gen_result.setMinimumHeight(140)
+        self.gen_result.setStyleSheet(
+            f"background-color: {COLORS['background']}; border: 1px solid {COLORS['border']}; "
+            f"border-radius: 8px; padding: 10px; font-size: 13px;"
+        )
+        outer.addWidget(self.gen_result)
+
+        return frame
+
+    def on_generate_from_ingredients(self):
+        text = self.gen_ingredients.toPlainText()
+        category = self.gen_category.currentData() or "lunch"
+        restrictions = []
+        user = self.main_window.current_user if self.main_window else None
+        if user and getattr(user, "diet_type", None):
+            dt = str(user.diet_type).lower()
+            if "pevzner_8" in dt or "похуд" in dt:
+                restrictions.append("low_carb")
+        out = self._recipe_gen.generate_from_user_ingredients(
+            text, category=category, restrictions=restrictions or None
+        )
+        if out.get("error"):
+            self.gen_result.setPlainText(out["error"])
+            return
+        lines = [
+            out.get("name", "Рецепт"),
+            "",
+            f"Категория: {out.get('category', '')}",
+            f"Порции: {out.get('servings', '')}",
+            f"Сложность: {out.get('difficulty', '')}",
+            "",
+            "Ингредиенты:",
+        ]
+        for ing in out.get("ingredients") or []:
+            lines.append(f"• {ing}")
+        n = out.get("nutrition") or {}
+        lines.extend(
+            [
+                "",
+                "Питание (примерно):",
+                f"ккал: {n.get('calories', '')}; Б: {n.get('protein', '')} г; "
+                f"Ж: {n.get('fat', '')} г; У: {n.get('carbs', '')} г",
+                "",
+                "Приготовление:",
+            ]
+        )
+        for i, step in enumerate(out.get("instructions") or [], 1):
+            lines.append(f"{i}. {step}")
+        t = out.get("time") or {}
+        lines.extend(
+            [
+                "",
+                f"Время: подготовка {t.get('prep', '')} мин, готовка {t.get('cook', '')} мин "
+                f"(всего ~{t.get('total', '')} мин).",
+            ]
+        )
+        self.gen_result.setPlainText("\n".join(lines))
 
     def create_recipes_grid(self) -> QFrame:
         frame = QFrame()

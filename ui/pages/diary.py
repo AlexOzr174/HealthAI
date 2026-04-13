@@ -6,6 +6,9 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QDoubleSpinBox, QSpacerItem, QSizePolicy,
                              QDialog, QDialogButtonBox, QScrollArea)
 from PyQt6.QtCore import Qt, pyqtSignal
+
+from ui.components.press_feedback import attach_press_flash
+from ui.dialog_chrome import STANDARD_LIGHT_FORM_DIALOG_QSS, apply_light_dialog_chrome
 from datetime import datetime, date
 
 # Импорт конфигурации с fallback
@@ -44,12 +47,27 @@ class AddMealDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Добавить приём пищи")
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(480)
+        self.setMinimumHeight(440)
+        apply_light_dialog_chrome(self)
         self.setup_ui()
 
     def setup_ui(self):
         """Настройка интерфейса диалога"""
         layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+
+        hint = QLabel(
+            "Выберите тип приёма и продукт из базы. В подсказке к продукту указаны ккал и БЖУ "
+            "<b>на 100 г</b>; итог для вашей порции: эти значения умножаются на (граммы ÷ 100)."
+        )
+        hint.setWordWrap(True)
+        hint.setTextFormat(Qt.TextFormat.RichText)
+        hint.setStyleSheet(
+            f"color: {COLORS['text_secondary']}; font-size: 12px; padding: 8px; "
+            f"background-color: {COLORS['surface']}; border-radius: 8px; border: 1px solid {COLORS['border']};"
+        )
+        layout.addWidget(hint)
 
         # Тип приёма пищи
         layout.addWidget(QLabel("Тип приёма пищи:"))
@@ -86,9 +104,10 @@ class AddMealDialog(QDialog):
         self.selected_product_label.setWordWrap(True)
         self.selected_product_label.setStyleSheet(f"""
             color: {COLORS['text_primary']};
-            background-color: {COLORS['background']};
-            padding: 8px;
-            border-radius: 6px;
+            background-color: {COLORS['surface']};
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid {COLORS['border']};
         """)
         layout.addWidget(self.selected_product_label)
 
@@ -121,6 +140,11 @@ class AddMealDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+        for btn in buttons.findChildren(QPushButton):
+            attach_press_flash(btn)
+
+        self.setStyleSheet(STANDARD_LIGHT_FORM_DIALOG_QSS)
 
         self.selected_product = None
 
@@ -233,8 +257,9 @@ class DiaryPage(QWidget):
         prev_btn.setFixedSize(36, 36)
         prev_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['background']};
-                border: none;
+                background-color: {COLORS['surface']};
+                color: #1a1a1a;
+                border: 2px solid #2C3E50;
                 border-radius: 8px;
                 font-size: 16px;
             }}
@@ -257,8 +282,9 @@ class DiaryPage(QWidget):
         next_btn.setFixedSize(36, 36)
         next_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['background']};
-                border: none;
+                background-color: {COLORS['surface']};
+                color: #1a1a1a;
+                border: 2px solid #2C3E50;
                 border-radius: 8px;
                 font-size: 16px;
             }}
@@ -278,13 +304,14 @@ class DiaryPage(QWidget):
         add_btn = QPushButton("+ Добавить")
         add_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLORS['primary']};
-                color: white;
-                border: none;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 8px;
                 padding: 8px 16px;
+                font-weight: 600;
             }}
-            QPushButton:hover {{ background-color: {COLORS['primary_hover']}; }}
+            QPushButton:hover {{ background-color: #F0F2F5; }}
         """)
         add_btn.clicked.connect(self.add_meal)
         layout.addWidget(add_btn)
@@ -518,15 +545,15 @@ class DiaryPage(QWidget):
         delete_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {COLORS['error_light']};
-                color: {COLORS['error']};
-                border: none;
+                color: #1a1a1a;
+                border: 2px solid #C0392B;
                 border-radius: 4px;
                 font-size: 16px;
                 font-weight: bold;
             }}
             QPushButton:hover {{
-                background-color: {COLORS['error']};
-                color: white;
+                background-color: #F5B7B1;
+                color: #1a1a1a;
             }}
         """)
         delete_btn.clicked.connect(lambda: self.delete_meal(meal))

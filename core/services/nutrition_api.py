@@ -44,7 +44,10 @@ class NutritionAPI:
     """Клиент для работы с API питания"""
     
     def __init__(self, api_keys: Dict[str, str] = None):
-        self.api_keys = api_keys or {}
+        from core.config import get_api_keys
+        if api_keys is None:
+            api_keys = get_api_keys()
+        self.api_keys = api_keys
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'HealthAI/1.0'

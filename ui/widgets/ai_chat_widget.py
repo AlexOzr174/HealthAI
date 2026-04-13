@@ -120,15 +120,17 @@ class AIChatWidget(QWidget):
         self.send_button.setFixedSize(50, 50)
         self.send_button.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50;
-                color: white;
+                background-color: #FFFFFF;
+                color: #1a1a1a;
+                border: 2px solid #1a1a1a;
                 border-radius: 25px;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #E8F5E9;
             }
             QPushButton:pressed {
-                background-color: #3d8b40;
+                background-color: #C8E6C9;
             }
         """)
         self.send_button.clicked.connect(self.send_message)

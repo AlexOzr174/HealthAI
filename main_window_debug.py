@@ -5,6 +5,7 @@ import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 from config.settings import APP_NAME, APP_VERSION
 from database.init_db import init_database, populate_initial_data
@@ -33,6 +34,7 @@ except Exception as e:
     sys.exit(1)
 
 print("\n--- Создание QApplication ---")
+QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
 app = QApplication(sys.argv)
 app.setStyle('Fusion')
 print("✓ QApplication создан")

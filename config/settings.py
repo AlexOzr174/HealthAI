@@ -6,6 +6,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Пути к файлам
 DATA_DIR = os.path.join(BASE_DIR, 'assets')
+APP_ICON_PATH = os.path.join(DATA_DIR, 'app_icon.png')
 DB_DIR = os.path.join(BASE_DIR, 'database')
 DB_PATH = os.path.join(DB_DIR, 'healthai.db')
 
