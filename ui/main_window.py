@@ -119,6 +119,11 @@ class MainWindow(QMainWindow):
         except Exception as e:
             _log.warning("Освобождение ML при выходе (фото): %s", e)
 
+    def prepare_for_quit(self) -> None:
+        """QApplication.quit() / Cmd+Q на macOS иногда не вызывают closeEvent — потоки чата иначе рвутся с abort."""
+        self._shutdown_chat_workers_once()
+        self._shutdown_photo_ml_once()
+
     def _setup_menu_bar(self):
         """Файл: выход; Справка: о программе и про регистрацию."""
         from config.settings import APP_NAME, APP_VERSION

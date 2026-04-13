@@ -175,9 +175,8 @@ def main():
         # Пользователь уже существует, показываем главное окно
         window.show()
 
-    # Остановку потоков чата и ML — в MainWindow.closeEvent (пока виджеты ещё живы).
-    # aboutToQuit: только «сухая» уборка без обращения к окнам (иначе use-after-free).
-
+    # Потоки чата (QThread): и в closeEvent, и в aboutToQuit — quit()/Cmd+Q может миновать closeEvent.
+    app.aboutToQuit.connect(window.prepare_for_quit)
     app.aboutToQuit.connect(qt_safe_teardown)
 
     # Запуск приложения

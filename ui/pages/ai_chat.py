@@ -493,6 +493,10 @@ class AIChatPage(QWidget):
             if w is None:
                 continue
             setattr(self, name, None)
+            try:
+                w.disconnect(self)
+            except TypeError:
+                pass
             w.blockSignals(True)
             if w.isRunning():
                 w.requestInterruption()

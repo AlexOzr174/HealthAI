@@ -3,6 +3,8 @@
 """
 from __future__ import annotations
 
+import logging
+
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QProgressBar, QTextEdit, QWidget
@@ -13,6 +15,8 @@ from PyQt6.QtGui import QCloseEvent, QPixmap, QIcon
 from ui.dialog_chrome import STANDARD_LIGHT_FORM_DIALOG_QSS, apply_light_dialog_chrome
 from ui.file_dialog_utils import get_open_image_path
 from ui.components.press_feedback import attach_press_flash
+
+_log = logging.getLogger(__name__)
 
 
 class ImageAnalyzerThread(QThread):
@@ -70,6 +74,10 @@ class ImageAnalyzerThread(QThread):
         }
 
 
+# Поток ещё в run() — нельзя deleteLater(QThread), иначе abort «Destroyed while thread is still running».
+_ORPHAN_IMAGE_ANALYZER_THREADS: list[ImageAnalyzerThread] = []
+
+
 class PhotoUploadDialog(QDialog):
     """Диалог загрузки и анализа фото еды"""
     
@@ -89,11 +97,21 @@ class PhotoUploadDialog(QDialog):
         t = self.analyzer_thread
         if t is not None:
             self.analyzer_thread = None
+            try:
+                t.disconnect(self)
+            except TypeError:
+                pass
             t.blockSignals(True)
             if t.isRunning():
                 t.requestInterruption()
-                t.wait(5000)
-            t.deleteLater()
+                t.wait(15000)
+            if t.isRunning():
+                _log.warning(
+                    "ImageAnalyzerThread не завершился за 15 с — удерживаем QThread до выхода процесса (без deleteLater)."
+                )
+                _ORPHAN_IMAGE_ANALYZER_THREADS.append(t)
+            else:
+                t.deleteLater()
         super().closeEvent(event)
 
     def setup_ui(self):
