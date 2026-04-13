@@ -15,7 +15,9 @@ install_ollama_if_missing() {
   fi
   echo "[HealthAI] Установка: curl -fsSL https://ollama.com/install.sh | sh"
   curl -fsSL https://ollama.com/install.sh | sh
-  export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-}"
+  # Добавляем в конец PATH, не в начало — иначе после activate venv системный/Homebrew
+  # python окажется раньше venv/bin (см. launch.sh → ensure_ollama_models.sh).
+  export PATH="${PATH:-}:/usr/local/bin:/opt/homebrew/bin"
   hash -r 2>/dev/null || true
   if ! command -v ollama >/dev/null 2>&1; then
     echo "[HealthAI] Откройте новый терминал или добавьте /usr/local/bin в PATH." >&2

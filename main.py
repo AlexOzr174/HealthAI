@@ -10,22 +10,23 @@ HealthAI - Умный гид по здоровому питанию
 Версия: 1.0.0
 """
 
-import sys
+import logging
 import os
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QIcon
+import signal
+import sys
 
-from ui.styles import Styles, sync_config_colors_with_theme, set_theme, apply_app_light_palette
+# Каталог проекта в sys.path до любых пакетов HealthAI
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
-# Добавление родительской директории в путь
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# До загрузки нативных либ (numpy/OpenMP, torch и т.д.)
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 from core.app_logging import setup_logging
 
 setup_logging()
-
-import logging
 
 _log = logging.getLogger(__name__)
 
@@ -37,6 +38,20 @@ from core.qt_lifecycle import (
 )
 
 apply_default_ollama_env()
+
+# SIP до QApplication; затем PyQt6 (тяжёлый dlopen на macOS / внешних томах)
+pyqt6_disable_sip_destroy_on_exit()
+if sys.platform == "darwin":
+    _log.info(
+        "Загрузка Qt (PyQt6). На внешнем диске или при проверке безопасности первый запуск может "
+        "занимать до нескольких минут — это нормально, не прерывайте процесс."
+    )
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtWidgets import QApplication
+
+from ui.styles import Styles, sync_config_colors_with_theme, set_theme, apply_app_light_palette
 
 from config.settings import APP_NAME, APP_VERSION, BASE_DIR, APP_ICON_PATH
 from database.init_db import init_database, populate_initial_data
@@ -84,17 +99,33 @@ def setup_application():
     return is_first_launch
 
 
+def _install_signal_loggers() -> None:
+    """Логируем SIGTERM/SIGINT, затем отдаём сигнал ОС (иначе zsh пишет «terminated» без причины)."""
+
+    def _forward(signum: int, _frame: object) -> None:
+        try:
+            name = signal.Signals(signum).name
+        except Exception:
+            name = str(signum)
+        _log.warning(
+            "Получен сигнал %s — внешнее завершение (кнопка Stop в IDE, `kill`, закрытие сессии терминала и т.п.).",
+            name,
+        )
+        signal.signal(signum, signal.SIG_DFL)
+        os.kill(os.getpid(), signum)
+
+    signal.signal(signal.SIGTERM, _forward)
+    signal.signal(signal.SIGINT, _forward)
+
+
 def main():
     """Главная функция запуска приложения"""
-    # Несколько нативных библиотек (numpy/OpenMP, torch) на macOS иногда конфликтуют и падают при старте.
-    os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    _install_signal_loggers()
 
     # Единый стиль диалогов (иначе на macOS QMessageBox может быть «нативным» с плохим контрастом)
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
     # Создание приложения
     app = QApplication(sys.argv)
-    pyqt6_disable_sip_destroy_on_exit()
     app.setStyle('Fusion')  # Используем современный стиль
 
     # Единая светлая тема (на macOS иначе системная тёмная палитра портит выпадающие списки и popup)
@@ -150,8 +181,9 @@ def main():
     app.aboutToQuit.connect(qt_safe_teardown)
 
     # Запуск приложения
-    _log.info("%s запущено", APP_NAME)
+    _log.info("%s запущено (ожидание событий Qt)", APP_NAME)
     rc = app.exec()
+    _log.info("Цикл Qt завершён, код возврата: %r", rc)
     # После return из exec цикл Qt уже остановлен; см. core.qt_lifecycle.exit_after_qt_exec
     exit_after_qt_exec(rc)
 

@@ -1,4 +1,11 @@
-"""Общая настройка выхода из PyQt6 (macOS: меньше SIGSEGV при teardown CPython/SIP/нативных либ)."""
+"""Общая настройка выхода из PyQt6 (macOS: меньше SIGSEGV при teardown CPython/SIP/нативных либ).
+
+Вызывайте pyqt6_disable_sip_destroy_on_exit() до создания QApplication.
+
+Если в отладчике виден залипание в dyld / AppleSystemPolicy::checkLibraryLoad при импорте PyQt6,
+это проверка ОС при dlopen .so (часто дольше на томах /Volumes/* и при атрибуте карантина на wheel).
+Перенос проекта на локальный диск или снятие quarantine с site-packages обычно ускоряет старт.
+"""
 from __future__ import annotations
 
 import gc

@@ -31,10 +31,13 @@ chmod +x "${SCRIPT_DIR}/main.py" 2>/dev/null || true
 chmod +x "${SCRIPT_DIR}/setup.sh" 2>/dev/null || true
 chmod +x "${SCRIPT_DIR}/scripts/ensure_ollama_models.sh" 2>/dev/null || true
 
-if [ -f "${SCRIPT_DIR}/venv/bin/activate" ]; then
+PYTHON_BIN=""
+if [ -x "${SCRIPT_DIR}/venv/bin/python3" ]; then
+  PYTHON_BIN="${SCRIPT_DIR}/venv/bin/python3"
   # shellcheck source=/dev/null
   source "${SCRIPT_DIR}/venv/bin/activate"
-elif [ -f "${SCRIPT_DIR}/.venv/bin/activate" ]; then
+elif [ -x "${SCRIPT_DIR}/.venv/bin/python3" ]; then
+  PYTHON_BIN="${SCRIPT_DIR}/.venv/bin/python3"
   # shellcheck source=/dev/null
   source "${SCRIPT_DIR}/.venv/bin/activate"
 fi
@@ -42,4 +45,7 @@ fi
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/scripts/ensure_ollama_models.sh"
 
+if [ -n "${PYTHON_BIN}" ]; then
+  exec "${PYTHON_BIN}" "${SCRIPT_DIR}/main.py" "$@"
+fi
 exec python3 "${SCRIPT_DIR}/main.py" "$@"
