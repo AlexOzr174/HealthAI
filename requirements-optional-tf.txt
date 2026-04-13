@@ -1,0 +1,4 @@
+# Опционально: только если используете Keras .h5 в models/vision (не resnet50.pth).
+# После основного: pip install -r requirements.txt && pip install -r requirements-optional-tf.txt
+
+tensorflow>=2.13.0,<2.22
